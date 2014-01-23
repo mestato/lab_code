@@ -217,6 +217,9 @@ Required.  The file of the forward direction sequences to be searched.
 -r|--reverse
 Required.  The file of the reverse direction sequences to be searched.  
  
+WARNING: This script puts the entire forward fastq file into memory, so
+use with extreme caution on large files.
+
     );
     print "\n";
     return;
