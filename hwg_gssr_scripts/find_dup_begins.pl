@@ -27,7 +27,7 @@
 # 
 # Output:
 # ------
-# Four output files are produced:
+# Four output files are produced, in the same directory as the input files:
 #
 # <forward_fastq_file>.uniq
 # A fastq file with forward sequences that do not share duplicated beginning
@@ -58,8 +58,17 @@
 # The length of the subsequence samples, currently set at 20, can be modified
 # with the $LEN variable below.
 #
-# Main caveat: if the duplicated region is shifted by even one base in either
-# direction, this script will not detect it.
+# WARNING: This script puts the entire forward file into memory in a hash, so
+# use with caution on large files.
+#
+# Needed improvements and caveat emptors: 
+# - if the duplicated region is shifted by even one base in either
+#   direction, this script will not detect it.
+#
+# - memory requirements are ridiculous, a better strategy is needed
+#
+# - the output files are put whereever the input files are because the path
+#   is not parsed off, could be fixed with File::Basename
 # 
 #
 #---------------------------------------------------------------------------------
@@ -192,7 +201,7 @@ my $uniq2 = $count - $dups;
 print "total pairs examined: $count\n";
 print "pairs with dup beginning: $dups\n";
 print "pairs with uniq beginning: $uniq2\n";
-print "pct: $pct\n";
+print "percent duplicates: $pct %\n";
 
 
 ################################################################################
