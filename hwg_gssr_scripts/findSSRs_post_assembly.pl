@@ -29,6 +29,10 @@
 # -f|--fasta_file <fasta_file>
 # Required.  The file of the sequences to be searched. 
 # 
+# -m|--masked_file <masked_fasta_file>
+# Required.  A soft-masked version of the fasta file (soft masked means low
+# complexity sequences are in lower case bases.)
+# 
 # Output:
 # ------
 # Eight output files are produced:
@@ -118,8 +122,8 @@ our $LENGTH_FROM_END = 15;
 #------------
 # PRIMER PARAMETERS
 
-my $PRIMER3 = "/primer3-2.3.5/src/primer3_core";
-my $PRIMER3_CONFIG = "/primer3-2.3.5/src/primer3_config/";
+my $PRIMER3 = "/lustre/projects/staton/software/primer3-2.3.6/src/primer3_core";
+my $PRIMER3_CONFIG = "/lustre/projects/staton/software/primer3-2.3.6/src/primer3_config/";
 
 my $PRIMER_OPT_SIZE="20";  # default 20
 my $PRIMER_MIN_SIZE="18";  # default 18
@@ -207,7 +211,7 @@ main();
 sub main{
     my $fasta_file;
     my $masked_file;
-    my $species;
+    my $project;
 
     my $p3_input;
     my $p3_output;
@@ -225,7 +229,7 @@ sub main{
     Getopt::Long::Configure ('bundling');
     GetOptions('f|fasta_file=s'  => \$fasta_file,
                'm|masked_file=s' => \$masked_file,
-               's|species=s'     => \$species);
+               'p|project=s'     => \$project);
 
     ## Check that all required parameters have been included
     if(!$fasta_file){ print "A fasta file is required.\n"; _printUsage(); exit;}
@@ -269,12 +273,12 @@ sub main{
     my $tri_fh = *TRI;
     my $tetra_fh = *TETRA;
     print "parsing primer3...";
-    parseP3_output($p3_output, $di_fh, $tri_fh, $tetra_fh, $workbook, $formats, $species);
+    parseP3_output($p3_output, $di_fh, $tri_fh, $tetra_fh, $workbook, $formats, $project);
     print "done.\n";
     close RPT;
 
     print "stats...\n";
-    my $worksheet_stats = printStats($stats_out, $workbook, $formats, $species);
+    my $worksheet_stats = printStats($stats_out, $workbook, $formats, $project);
 
     $worksheet_stats->activate();
     $worksheet_stats->select();
@@ -504,7 +508,7 @@ sub parseP3_output{
 
     my $workbook = $_[4]; # file name
     my $formats  = $_[5]; # file name
-    my $species  = $_[6]; # file name
+    my $project  = $_[6]; # file name
 
     my $start;
     my $seq_id;
@@ -519,7 +523,7 @@ sub parseP3_output{
     $di_worksheet->set_column('A:A', 60, $formats->{text});
     $di_worksheet->set_column('F:G', 30, $formats->{text});
     #$di_worksheet->set_column('J:J', 100, $formats->{text});
-    $di_worksheet->write('A1', "Dinucleotide Repeats for $species", $formats->{header});
+    $di_worksheet->write('A1', "Dinucleotide Repeats for $project", $formats->{header});
     $di_worksheet->write('A2', 'Sequence Name', $formats->{header});
         $di_worksheet->write('B2', 'Motif', $formats->{header});
         $di_worksheet->write('C2', '# Repeats', $formats->{header});
@@ -537,7 +541,7 @@ sub parseP3_output{
     $tri_worksheet->set_column('A:A', 60, $formats->{text});
     $tri_worksheet->set_column('F:G', 30, $formats->{text});
     #$tri_worksheet->set_column('J:J', 100, $formats->{text});
-    $tri_worksheet->write('A1', "Trinucleotide Repeats for $species", $formats->{header});
+    $tri_worksheet->write('A1', "Trinucleotide Repeats for $project", $formats->{header});
     $tri_worksheet->write('A2', 'Sequence Name', $formats->{header});
         $tri_worksheet->write('B2', 'Motif', $formats->{header});
         $tri_worksheet->write('C2', '# Repeats', $formats->{header});
@@ -555,7 +559,7 @@ sub parseP3_output{
     $tetra_worksheet->set_column('A:A', 60, $formats->{text});
     $tetra_worksheet->set_column('F:G', 30, $formats->{text});
     #$tetra_worksheet->set_column('J:J', 100, $formats->{text});
-    $tetra_worksheet->write('A1', "Tetranucleotide Repeats for $species", $formats->{header});
+    $tetra_worksheet->write('A1', "Tetranucleotide Repeats for $project", $formats->{header});
     $tetra_worksheet->write('A2', 'Sequence Name', $formats->{header});
         $tetra_worksheet->write('B2', 'Motif', $formats->{header});
         $tetra_worksheet->write('C2', '# Repeats', $formats->{header});
@@ -741,7 +745,7 @@ sub printStats{
     my $stats_out = $_[0]; # file name
     my $workbook  = $_[1]; # file name
     my $formats   = $_[2]; # file name
-    my $species   = $_[3]; # file name
+    my $project   = $_[3]; # file name
 
 
     ##--------------------------------------------------------------------
@@ -828,7 +832,7 @@ sub printStats{
     $worksheet->set_column('A:A', 75, $formats->{text});
     $worksheet->set_column('B:B', 30, $formats->{text});
     
-    $worksheet->write('A1',"SSR Summary Report for $species", $formats->{header});
+    $worksheet->write('A1',"SSR Summary Report for $project", $formats->{header});
     $worksheet->write('A2',"Analsis of $SEQ_COUNT sequences", $formats->{text});
     $worksheet->write('A3',"$time", $formats->{text});
 
@@ -957,6 +961,13 @@ sub _printUsage {
 
     -f|--fasta_file <fasta_file>
         Required.  The file of the sequences to be searched. 
+
+    -m|--masked_file <masked_fasta_file>
+        Required.  A soft-masked version of the fasta file (soft masked means low
+        complexity sequences are in lower case bases.)
+
+    -p|--project "project name"
+        Optional.  A project name for use in the Excel output.
 
     );
     print "\n";
