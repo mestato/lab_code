@@ -269,13 +269,21 @@ sub main{
     open (DI, ">$di_primer_out");
     open (TRI, ">$tri_primer_out");
     open (TETRA, ">$tetra_primer_out");
+    open (FASTAOUT, ">$fasta_out");
+    open (FASTAMULTI, ">$fasta_out_multi");
     my $di_fh = *DI;
     my $tri_fh = *TRI;
     my $tetra_fh = *TETRA;
+    my $fastaout_fh = *FASTAOUT;
+    my $fastamulti_fh = *FASTAMULTI;
     print "parsing primer3...";
-    parseP3_output($p3_output, $di_fh, $tri_fh, $tetra_fh, $workbook, $formats, $project);
+    parseP3_output($p3_output, $di_fh, $tri_fh, $tetra_fh, $workbook, $formats, $project, $fastaout_fh, $fastamulti_fh);
     print "done.\n";
-    close RPT;
+    close DI;
+    close TRI;
+    close TETRA;   
+    close FASTAOUT;
+    close FASTAMULTI;
 
     print "stats...\n";
     my $worksheet_stats = printStats($stats_out, $workbook, $formats, $project);
@@ -283,10 +291,9 @@ sub main{
     $worksheet_stats->activate();
     $worksheet_stats->select();
     $workbook->close();
-     
-    print "printing fasta file...";
-    printFasta($fasta_file, $fasta_out, $fasta_out_multi);
+
     print "done.\n";
+     
      
 }
 
@@ -510,6 +517,9 @@ sub parseP3_output{
     my $formats  = $_[5]; # file name
     my $project  = $_[6]; # file name
 
+    my $fastaout_fh = $_[7]; # file name
+    my $fastamulti_fh = $_[8]; # file name
+
     my $start;
     my $seq_id;
     my $ssr_id;
@@ -650,9 +660,9 @@ sub parseP3_output{
                     my $multi_flag = 0;
                     ## skip contigs with more than one ssr
                     if(scalar @{ $CONTIG_SSRS{$contig}} == 1){
+                        print $fastaout_fh ">$contig $motif.$ssrStart-$ssrEnd\n$seq\n";
                         #print "\t$forward\n";
                         $SSR_w_PRIMER_COUNT++;
-                        $ssr_id =~ /^(\S+)_ssr\d+/;
                         if(length $motif == 2){
                             print $di_fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
                             print $di_fh "\n";
@@ -727,6 +737,9 @@ sub parseP3_output{
                                 #$tetra_worksheet->write("J$tetra_index", $seq, $formats->{text});
                             $tetra_index++;
                         }
+                    }
+                    else{
+                        print $fastamulti_fh ">$contig\n$seq\n";
                     }
                 }
             }
@@ -903,16 +916,6 @@ sub printStats{
 
 }
 
-###############################################################
-sub printFasta{
-    my $fasta_file      = $_[0]; # file name
-    my $fasta_out       = $_[1]; # file name
-    my $fasta_out_multi = $_[2]; # file name
-
-    # rewrite with seqio
-
-
-}
 ###############################################################
 
 sub createExcelWorkbook{
