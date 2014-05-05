@@ -1,4 +1,4 @@
-#!/cugi/software/bin/perl
+#!/usr/bin/perl
 use strict;
 my $file = shift;
 open IN, $file || die "File not found -3 \n";
