@@ -19,20 +19,20 @@
 #
 # Also path to the primer3 executable and primer3 config files must be specified
 # in the global variables section of the script.
-# 
+#
 # Usage:
 # -----
 # Usage: findSSRs.pl <arguments>
 #
 # The list of arguments includes:
-# 
+#
 # -f|--fasta_file <fasta_file>
-# Required.  The file of the sequences to be searched. 
-# 
+# Required.  The file of the sequences to be searched.
+#
 # -m|--masked_file <masked_fasta_file>
 # Required.  A soft-masked version of the fasta file (soft masked means low
 # complexity sequences are in lower case bases.)
-# 
+#
 # Output:
 # ------
 # Eight output files are produced:
@@ -47,7 +47,7 @@
 # A text file of statistics about the SSRs discovered.
 #
 # <input-file-name>.ssr_report.txt
-# A tab-delimited file with each SSR.  The columns are sequence name, 
+# A tab-delimited file with each SSR.  The columns are sequence name,
 # motif, number of repeats, start position and end position.
 #
 # <input-file-name>.ssr_report.xlsx
@@ -68,21 +68,21 @@
 # <input-file-name>.tetra_primer_report.txt
 # A tab-delimited file with sequences with a 4-bp SSR motif.  Columns are
 # sequence name, motif, start position, end position, left primer,
-# right primer, left primer Tm, right primer Tm, amplicon size, full 
+# right primer, left primer Tm, right primer Tm, amplicon size, full
 # sequence, masked sequence
 #
 #
-# Details: 
+# Details:
 # -------
 # By default the script finds:
-# 2 bp motifs repeated from 8 to 40 times, 
-# 3 bp motifs repeated from 7 to 30 times, 
-# 4 bp motifs repeated from 6 to 20 times, 
-# 
-# The script only reports SSRs that are not within 15 bases of either 
+# 2 bp motifs repeated from 8 to 40 times,
+# 3 bp motifs repeated from 7 to 30 times,
+# 4 bp motifs repeated from 6 to 20 times,
+#
+# The script only reports SSRs that are not within 15 bases of either
 # end of the sequence, in order to allow for primer design.
 #
-# These parameters may be changed in the "GLOBAL PARAMETERS" part of 
+# These parameters may be changed in the "GLOBAL PARAMETERS" part of
 # the script.
 #
 
@@ -103,7 +103,7 @@ use Excel::Writer::XLSX;
 
 #--------------
 # REPEAT IDENTIFICATION PARAMETERS
-# Specify Motif Frequency  
+# Specify Motif Frequency
 # Motifs that occur less frequently than indicated below will be ignored.
 # A 0 indicates that this motif length will be ignored.
 
@@ -133,7 +133,7 @@ my $PRIMER_NUM_NS_ACCEPTED = "0";  # default 0
 
 my $PRIMER_PRODUCT_SIZE_RANGE = "100-200";
 
-my $PRIMER_OPT_TM = "60.0"; 
+my $PRIMER_OPT_TM = "60.0";
 my $PRIMER_MIN_TM = "55.0";
 my $PRIMER_MAX_TM = "65.0";
 
@@ -171,18 +171,18 @@ my %MOTIFS = ('|AT|TA|'                   => 0,
 my %MOTIFLEN = ('2'  => 0,
                 '3'  => 0,
                 '4'  => 0);
-                
+
 my %MOTIFLEN_w_PRIMERS = ('2'  => 0,
                           '3'  => 0,
                           '4'  => 0);
 
-    
+
 # Set up the Motif specifications, based on the chosen motif types:.
 my @MOTIF_SPECS;
 push(@MOTIF_SPECS,[2, $MIN_REPS_2bp, $MAX_REPS_2bp, 'dinucleotides']);
 push(@MOTIF_SPECS,[3, $MIN_REPS_3bp, $MAX_REPS_3bp, 'trinucleotides']);
 push(@MOTIF_SPECS,[4, $MIN_REPS_4bp, $MAX_REPS_4bp, 'tetranucleotides']);
-    
+
 my $SSR_COUNT = 0;
 my $SSR_w_PRIMER_COUNT = 0;
 
@@ -245,7 +245,7 @@ sub main{
     $ssr_out        = "$fasta_file.ssr_report.txt";
     $ssr_xlsx       = "$fasta_file.ssr_report.xlsx";
     $fasta_out      = "$fasta_file.ssr_filtered.fasta";
-    $fasta_out_multi = "$fasta_file.ssr_multi_seqs.fasta";  
+    $fasta_out_multi = "$fasta_file.ssr_multi_seqs.fasta";
     $stats_out      = "$fasta_file.ssr_stats.txt";
 
     $di_primer_out = "$fasta_file.di_primer_report.txt";
@@ -281,7 +281,7 @@ sub main{
     print "done.\n";
     close DI;
     close TRI;
-    close TETRA;   
+    close TETRA;
     close FASTAOUT;
     close FASTAMULTI;
 
@@ -293,8 +293,6 @@ sub main{
     $workbook->close();
 
     print "done.\n";
-     
-     
 }
 
 ###############################################################
@@ -371,7 +369,7 @@ sub process_seq{
         my $regex = "(([gatc]{$motifLength})\\2{$min_number_of_repeats,})";
 
         ## LOOPC
-        # run through the sequence and check for this motif spec 
+        # run through the sequence and check for this motif spec
         while ($seq =~ /$regex/ig) {
             # Get the ssr and motif that were found
             my $ssr = $1;
@@ -394,7 +392,7 @@ sub process_seq{
                 # Only store the information if we have never
                 # seen this starting position before
                 # or anohter ssr starts within 2 bases of this one
-                
+
                 if (!exists $seen{$contig_name."_ssr".$ssrStart} &&
                     !exists $seen{$contig_name."_ssr".($ssrStart-1)} &&
                     !exists $seen{$contig_name."_ssr".($ssrStart-2)} &&
@@ -410,19 +408,19 @@ sub process_seq{
                         ## FOUND A SSR TO REPORT
                         my $ssr_id = $contig_name."_ssr".$ssrStart;
                         $seen{$ssr_id} = 1;
-    
+
                         #print "$contig_name\tSSR $ssr";
                         #print "\tmotif $motif";
                         #print "\tnoRepeats $noRepeats";
                         #print "\tssrStart $ssrStart\n";
-    
+
                         if(exists $CONTIG_SSRS{$contig_name}){
                             push @{ $CONTIG_SSRS{$contig_name} }, $ssrStart;
                         }
-                        else{   
+                        else{
                            $CONTIG_SSRS{$contig_name} = [$ssrStart];
                         }
-    
+
                         $SSR_COUNT++;
                         #print "$contig_name\t$ssr_id\t$motif\t$noRepeats\t$ssrStart\t$ssrEnd\n";
                         printf $out_fh ("$contig_name\t$motif\t$noRepeats\t$ssrStart\t$ssrEnd\n");
@@ -438,12 +436,12 @@ sub process_seq{
                         $SSR_STATS{$ssr_id}{NO_REPEATS}   = $noRepeats;
                         $SSR_STATS{$ssr_id}{SEQ}          = $seq;
                         $SSR_STATS{$ssr_id}{SEQM}         = $seq_masked;
-    
+
                         my $motiflen = length $motif;
                         my $tmp = $MOTIFLEN{$motiflen};
                         $tmp++;
                         $MOTIFLEN{$motiflen} = $tmp;
-    
+
                         # Increment motif count
                         foreach my $group (keys %MOTIFS) {
                             my $motifUC = uc($motif);
@@ -467,7 +465,7 @@ sub process_seq{
         } # end while (sequence =~ /$regex/ig);
 
     ## LOOPB
-    } # end for $index (0 .. (scalar @{$MOTIF_SPECS} - 1)) 
+    } # end for $index (0 .. (scalar @{$MOTIF_SPECS} - 1))
 
 }
 
@@ -773,7 +771,7 @@ sub printStats{
 
     foreach my $contig_name (keys %CONTIG_SSRS){
         my $starts = scalar @{ $CONTIG_SSRS{$contig_name} };
-        if($starts == 1){ 
+        if($starts == 1){
             $SINGLE_SSR_COUNT++;
             my @starts = @{ $CONTIG_SSRS{$contig_name} };
             my $start = $starts[0];
@@ -787,7 +785,7 @@ sub printStats{
 
     my $SSR_COUNT_w_primers = 0;
     foreach my $ssr_id (keys %SSR_STATS){
-        if($SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){ 
+        if($SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){
             $SSR_COUNT_w_primers++;
         }
     }
@@ -795,7 +793,7 @@ sub printStats{
     ##--------------------------------------------------------------------
     ## print text file
     open (OUTS, ">".$stats_out) || die "ERROR cannot open $stats_out\n";
-    
+
     print OUTS 'SSR Summary Report\n';
     print OUTS "Analsis of $SEQ_COUNT sequences\n";
     print OUTS "$time\n";
@@ -824,7 +822,7 @@ sub printStats{
     foreach $group (sort keys %MOTIFLEN){
         print OUTS "$group\t$MOTIFLEN{$group}\n";
     }
-    
+
     print OUTS "SSRS with PRIMERS\n";
     print OUTS "Number of SSRs identified with successful primer design: $SSR_COUNT_w_primers\n";
     print OUTS "Number of sequences with 1 SSR and successful primer design: $SINGLE_SSR_COUNT_w_primers\n";
@@ -844,7 +842,7 @@ sub printStats{
 
     $worksheet->set_column('A:A', 75, $formats->{text});
     $worksheet->set_column('B:B', 30, $formats->{text});
-    
+
     $worksheet->write('A1',"SSR Summary Report for $project", $formats->{header});
     $worksheet->write('A2',"Analsis of $SEQ_COUNT sequences", $formats->{text});
     $worksheet->write('A3',"$time", $formats->{text});
@@ -890,7 +888,7 @@ sub printStats{
         $worksheet->write("A$i", "$group bp", $formats->{text});
         $worksheet->write("B$i", $MOTIFLEN{$group}, $formats->{text});
     }
-    
+
     $i++;
     $i++;
     $worksheet->write("A$i",'SSRs with Primers', $formats->{header});
@@ -921,15 +919,15 @@ sub printStats{
 sub createExcelWorkbook{
 
     my $ssr_xlsx = $_[0];
-  
+
     my $workbook;        # the excel workbook
     my %formats;
     my %header;
     my %text;
     my %bigheader;
     my %highlight;
-  
-  
+
+
     # Create an excel workbook
     $workbook = Excel::Writer::XLSX->new("$ssr_xlsx");
 
@@ -940,7 +938,7 @@ sub createExcelWorkbook{
                 color        => 'black',
                 align        => 'left',
                 text_wrap    => 1);
-  
+
     %text = (font         => 'Calibri',
                 size         => 12,
                 color        => 'black',
