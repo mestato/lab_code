@@ -186,10 +186,10 @@ push(@MOTIF_SPECS,[4, $MIN_REPS_4bp, $MAX_REPS_4bp, 'tetranucleotides']);
 my $SSR_COUNT = 0;
 my $SSR_w_PRIMER_COUNT = 0;
 
-## CONTIG_SSRS structure:
+## CONTIG_SSR_STARTS structure:
 ## key: contig_name
 ##  value: array of starts of SSRs in that contig
-my %CONTIG_SSRS = ();
+my %CONTIG_SSR_STARTS = ();
 
 ## SSR_STATS structure:
 ## key: ssr_id
@@ -414,11 +414,11 @@ sub process_seq{
                         #print "\tnoRepeats $noRepeats";
                         #print "\tssrStart $ssrStart\n";
 
-                        if(exists $CONTIG_SSRS{$contig_name}){
-                            push @{ $CONTIG_SSRS{$contig_name} }, $ssrStart;
+                        if(exists $CONTIG_SSR_STARTS{$contig_name}){
+                            push @{ $CONTIG_SSR_STARTS{$contig_name} }, $ssrStart;
                         }
                         else{
-                           $CONTIG_SSRS{$contig_name} = [$ssrStart];
+                           $CONTIG_SSR_STARTS{$contig_name} = [$ssrStart];
                         }
 
                         $SSR_COUNT++;
@@ -657,7 +657,7 @@ sub parseP3_output{
 
                     my $multi_flag = 0;
                     ## skip contigs with more than one ssr
-                    if(scalar @{ $CONTIG_SSRS{$contig}} == 1){
+                    if(scalar @{ $CONTIG_SSR_STARTS{$contig}} == 1){
                         print $fastaout_fh ">$contig $motif.$ssrStart-$ssrEnd\n$seq\n";
                         #print "\t$forward\n";
                         $SSR_w_PRIMER_COUNT++;
@@ -769,11 +769,11 @@ sub printStats{
     my $SINGLE_SSR_COUNT = 0;
     my $MULTI_SSR_COUNT = 0;
 
-    foreach my $contig_name (keys %CONTIG_SSRS){
-        my $starts = scalar @{ $CONTIG_SSRS{$contig_name} };
+    foreach my $contig_name (keys %CONTIG_SSR_STARTS){
+        my $starts = scalar @{ $CONTIG_SSR_STARTS{$contig_name} };
         if($starts == 1){
             $SINGLE_SSR_COUNT++;
-            my @starts = @{ $CONTIG_SSRS{$contig_name} };
+            my @starts = @{ $CONTIG_SSR_STARTS{$contig_name} };
             my $start = $starts[0];
             my $ssr_id = $contig_name."_ssr".$start;
             if(exists $SSR_STATS{$ssr_id} && $SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){
