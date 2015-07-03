@@ -366,106 +366,137 @@ sub process_seq{
         # holds the maximum number of repeats
         my $max_number_of_repeats = $MOTIF_SPECS[$index][2]-1;
         # the regular expression for looking for SSRs
-        my $regex = "(([gatc]{$motifLength})\\2{$min_number_of_repeats,})";
+        my $regex = "(([gatc]{$motifLength})\\2{$min_number_of_repeats,$max_number_of_repeats})";
 
-        ## LOOPC
         # run through the sequence and check for this motif spec
         while ($seq =~ /$regex/ig) {
             # Get the ssr and motif that were found
             my $ssr = $1;
             my $motif = lc $2;
+			my $start_index = $-[0];
+			my $end_index = $+[0];
 
-            ## initialize the repeats varaible to (motifLength - 1)
-            ## or 1 if motif length - 1 equals 0;
-            my $repeats = $motifLength - 1;
-            $repeats = 1 if(!$repeats);
+			if(quality_check_ssr($contig_name, $ssr, $motif, $start_index, $end_index, $seq)){
+				process_ssr($contig_name, $ssr, $motif, $start_index, $end_index, $seq, $seq_masked, $out_fh, $p3_input_fh);
 
-            my $noRepeats = ((length $ssr)/$motifLength);
-            my $ssrEnd = pos $seq;
-            my $ssrStart = ($ssrEnd - (length $ssr) + 1);
+			}
 
-            ## LOOP D - check to make sure the motif isn't the same letter over and over again AND we don't have too many repeats
+		}
+	}
+}
 
-            if (!($motif =~ /([gatc])\1{$repeats}/) && $noRepeats <= $max_number_of_repeats) {
 
-                ## LOOPE
-                # Only store the information if we have never
-                # seen this starting position before
-                # or anohter ssr starts within 2 bases of this one
 
-                if (!exists $seen{$contig_name."_ssr".$ssrStart} &&
-                    !exists $seen{$contig_name."_ssr".($ssrStart-1)} &&
-                    !exists $seen{$contig_name."_ssr".($ssrStart-2)} &&
-                    !exists $seen{$contig_name."_ssr".($ssrStart+1)} &&
-                    !exists $seen{$contig_name."_ssr".($ssrStart+2)}
-                   ) {
+sub quality_check_ssr{
+	my $contig_name = shift;
+	my $ssr = shift;
+ 	my $motif = shift;
+ 	my $start_index = shift;
+ 	my $end_index = shift;
+	my $seq = shift;
 
-                    # LOOP F
-                    # Check to make sure the SSR is not within $LENGTH_FROM_END bp of either end of the sequence
-                    my $seqLen = length $seq;
-                    if($ssrStart >= $LENGTH_FROM_END && $ssrEnd <= ($seqLen-$LENGTH_FROM_END)){
+	##-------------------------------------
+	## CHECKS to see if this is a good ssr
+	my $flag_same_base = 0;
+	my $flag_already_seen = 0;
+	my $flag_too_close_to_end = 0;
 
-                        ## FOUND A SSR TO REPORT
-                        my $ssr_id = $contig_name."_ssr".$ssrStart;
-                        $seen{$ssr_id} = 1;
+	## Check #1
+	## ignore SSRs that are the same base repeated
+	if ($ssr !~ /^g+$/i &&
+	    $ssr !~ /^a+$/i &&
+	    $ssr !~ /^c+$/i &&
+	    $ssr !~ /^t+$/i ) {
+		$flag_same_base = 1;
+	}
 
-                        #print "$contig_name\tSSR $ssr";
-                        #print "\tmotif $motif";
-                        #print "\tnoRepeats $noRepeats";
-                        #print "\tssrStart $ssrStart\n";
+	# Check #2
+	# Make sure this isn't an already called SSR in disguise
+	# (a dinucleotide repeat posing as a tetranucleotide repeat, for instance)
+	if (!exists $SSR_STATS{$contig_name."_ssr".$start_index} &&
+	    !exists $SSR_STATS{$contig_name."_ssr".($start_index-1)} &&
+	    !exists $SSR_STATS{$contig_name."_ssr".($start_index-2)} &&
+	    !exists $SSR_STATS{$contig_name."_ssr".($start_index+1)} &&
+	    !exists $SSR_STATS{$contig_name."_ssr".($start_index+2)}
+	) {
+		$flag_already_seen = 1;
+	}
 
-                        if(exists $CONTIG_SSR_STARTS{$contig_name}){
-                            push @{ $CONTIG_SSR_STARTS{$contig_name} }, $ssrStart;
-                        }
-                        else{
-                           $CONTIG_SSR_STARTS{$contig_name} = [$ssrStart];
-                        }
+	# Check #3
+	# Distance from end
+    my $seqLen = length $seq;
+    if($start_index >= $LENGTH_FROM_END && $end_index <= ($seqLen-$LENGTH_FROM_END)){
+		$flag_too_close_to_end = 1;
+	}
 
-                        $SSR_COUNT++;
-                        #print "$contig_name\t$ssr_id\t$motif\t$noRepeats\t$ssrStart\t$ssrEnd\n";
-                        printf $out_fh ("$contig_name\t$motif\t$noRepeats\t$ssrStart\t$ssrEnd\n");
-                        # change from soft mask to hard mask
-                        $seq_masked =~ s/[actg]/N/g;
-                        _addToPrimer3InputFile($p3_input_fh, $contig_name, $ssrStart, $ssrEnd, $seq_masked);
+	if($flag_same_base && $flag_already_seen && $flag_too_close_to_end){
+		return 1;
+	}
+	else{
+		return 0;
+	}
 
-                        # Store SSR_STATS
-                        $SSR_STATS{$ssr_id}{MOTIF}        = $motif;
-                        $SSR_STATS{$ssr_id}{START}        = $ssrStart;
-                        $SSR_STATS{$ssr_id}{END}          = $ssrEnd;
-                        $SSR_STATS{$ssr_id}{MOTIF_LENGTH} = $motifLength;
-                        $SSR_STATS{$ssr_id}{NO_REPEATS}   = $noRepeats;
-                        $SSR_STATS{$ssr_id}{SEQ}          = $seq;
-                        $SSR_STATS{$ssr_id}{SEQM}         = $seq_masked;
+}
 
-                        my $motiflen = length $motif;
-                        my $tmp = $MOTIFLEN{$motiflen};
-                        $tmp++;
-                        $MOTIFLEN{$motiflen} = $tmp;
 
-                        # Increment motif count
-                        foreach my $group (keys %MOTIFS) {
-                            my $motifUC = uc($motif);
-                            if($group =~ /\|$motifUC\|/){
-                            # If this group contains this motif
-                                    #print "Incrementing $group for $motif\n";
-                                    my $tmp = $MOTIFS{$group}++;
-                                    $tmp++;
-                                    $MOTIFS{$group} = $tmp;
-                            }
-                        }# end foreach $group
-                    } ## LOOP F
 
-                ## LOOPE
-               }
+sub process_ssr{
+	my $contig_name = shift;
+	my $ssr = shift;
+ 	my $motif = shift;
+ 	my $start_index = shift;
+ 	my $end_index = shift;
+	my $seq = shift;
+	my $seq_masked = shift;
+    my $out_fh      = shift;
+    my $p3_input_fh = shift;
 
-            # LOOPD
-            }
+	##-------------------------------------
+	## generate a few more stats and variables
+	my $motif_len = length $motif;
+	my $num_of_repeats = ($end_index-$start_index)/$motif_len;
+    my $ssr_id = $contig_name."_ssr".$start_index;
 
-        ## LOOPC
-        } # end while (sequence =~ /$regex/ig);
+	#print "$contig_name $ssr $motif\n";
+	#print "Start: $start_index\n";
+	#print "End: $end_index\n";
 
-    ## LOOPB
-    } # end for $index (0 .. (scalar @{$MOTIF_SPECS} - 1))
+	##-------------------------------------
+	## store in data structures
+
+    $SSR_COUNT++;
+    $MOTIFLEN{$motif_len}++;
+
+    if(exists $CONTIG_SSR_STARTS{$contig_name}){
+        push @{ $CONTIG_SSR_STARTS{$contig_name} }, $start_index;
+    }
+    else{
+       $CONTIG_SSR_STARTS{$contig_name} = [$start_index];
+    }
+
+	$SSR_STATS{$ssr_id}{MOTIF}        = $motif;
+	$SSR_STATS{$ssr_id}{START}        = $start_index;
+	$SSR_STATS{$ssr_id}{END}          = $end_index;
+	$SSR_STATS{$ssr_id}{MOTIF_LENGTH} = $motif_len;
+	$SSR_STATS{$ssr_id}{NO_REPEATS}   = $num_of_repeats;
+	$SSR_STATS{$ssr_id}{SEQ}          = $seq;
+	$SSR_STATS{$ssr_id}{SEQM}         = $seq_masked;
+
+	foreach my $group (keys %MOTIFS) {
+		my $motifUC = uc($motif);
+		if($group =~ /\|$motifUC\|/){
+			# If this group contains this motif
+			#print "Incrementing $group for $motif\n";
+			$MOTIFS{$group}++;
+		}
+	}
+
+	##-------------------------------------
+	# print to text file of all repeats found and primer 3 input file
+
+	printf $out_fh ("$contig_name\t$motif\t$num_of_repeats\t$start_index\t$end_index\n");
+	_addToPrimer3InputFile($p3_input_fh, $contig_name, $start_index, $end_index, $seq_masked);
+
 
 }
 
@@ -476,6 +507,9 @@ sub _addToPrimer3InputFile{
     my $ssrStart    = shift;
     my $ssrEnd      = shift;
     my $seq         = shift;
+
+	# change from soft mask to hard mask
+	$seq =~ s/[actg]/N/g;
 
     my $len         = $ssrEnd-$ssrStart;
 
