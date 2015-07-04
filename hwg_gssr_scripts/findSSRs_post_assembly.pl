@@ -252,10 +252,11 @@ sub main{
     $tri_primer_out = "$fasta_file.tri_primer_report.txt";
     $tetra_primer_out = "$fasta_file.tetra_primer_report.txt";
 
+	##---------------------------------------------------------------
     print "finding SSRs...\n";
     open(PI3, ">$p3_input") or die $!;
     my $p3_input_fh = *PI3;
-    getContigHash($fasta_file, $masked_file, $ssr_out, $p3_input_fh);
+    process_file($fasta_file, $masked_file, $ssr_out, $p3_input_fh);
     close PI3;
 
     print "running primer3...\n";
@@ -297,7 +298,7 @@ sub main{
 
 ###############################################################
 
-sub getContigHash{
+sub process_file{
     my $fasta_file  = $_[0]; # file name
     my $masked_file = $_[1]; # file name
     my $ssr_out     = $_[2]; # file name
