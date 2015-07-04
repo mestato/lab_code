@@ -285,7 +285,12 @@ sub main{
     my $tetra_fh = *TETRA;
     my $fastaout_fh = *FASTAOUT;
     my $fastamulti_fh = *FASTAMULTI;
-	#initiate_workbooks($di_fh, $tri_fh, $tetra_fh, $workbook, $formats, $project, $fastaout_fh, $fastamulti_fh);
+
+	# generate filehandles
+	my ($di_worksheet, $tri_worksheet, $tetra_worksheet) = initiate_workbooks($workbook, $formats, $project);
+
+
+
     print "done.\n";
     close DI;
     close TRI;
@@ -597,13 +602,6 @@ sub parseP3_output{
 		if ($primer_record =~ /PRIMER_PAIR_0_PRODUCT_SIZE=(\S+)/) {
 		    $product_size = $1;
 		}
-		print "record\n";
-		print "ssr_id $ssr_id\n";
-		print "forward $forward\n";
-		print "reverse $reverse\n";
-		print "left_tm $left_tm\n";
-		print "right_tm $right_tm\n";
-		print "product_size $product_size\n\n";
 
 		if(length $forward > 1){
 			if($forward eq $reverse){
@@ -623,8 +621,12 @@ sub parseP3_output{
 				my $seq        = $SSR_STATS{$ssr_id}{SEQ};
 				my $seq_masked = $SSR_STATS{$ssr_id}{SEQM};
 
-				$ssr_id =~ /(\S+)_ssr\d+/;
-				my $contig = $1;
+				#print "ssr_id $ssr_id\n";
+				#print "forward $forward\n";
+				#print "reverse $reverse\n";
+				#print "left_tm $left_tm\n";
+				#print "right_tm $right_tm\n";
+				#print "product_size $product_size\n\n";
 			}
 		}
 	}
@@ -632,80 +634,45 @@ sub parseP3_output{
     print "total identical primers: $identical_primer_cnt\n";
 }
 
-#    my $di_fh = $_[1]; # file name
-#    my $tri_fh = $_[2]; # file name
-#    my $tetra_fh = $_[3]; # file name
-#
-#    my $workbook = $_[4]; # file name
-#    my $formats  = $_[5]; # file name
-#    my $project  = $_[6]; # file name
-#
-#    my $fastaout_fh = $_[7]; # file name
-#    my $fastamulti_fh = $_[8]; # file name
-#
-#    my $start;
-#    my $seq_id;
-#    my $ssr_id;
-#    my $forward;
-#    my $reverse;
-#    my $product_size;
-#    my $left_tm;
-#    my $right_tm;
-#
-#    my $di_worksheet = $workbook->add_worksheet("Di");
-#    $di_worksheet->set_column('A:A', 60, $formats->{text});
-#    $di_worksheet->set_column('F:G', 30, $formats->{text});
-#    #$di_worksheet->set_column('J:J', 100, $formats->{text});
-#    $di_worksheet->write('A1', "Dinucleotide Repeats for $project", $formats->{header});
-#    $di_worksheet->write('A2', 'Sequence Name', $formats->{header});
-#        $di_worksheet->write('B2', 'Motif', $formats->{header});
-#        $di_worksheet->write('C2', '# Repeats', $formats->{header});
-#        $di_worksheet->write('D2', 'Start', $formats->{header});
-#        $di_worksheet->write('E2', 'End', $formats->{header});
-#        $di_worksheet->write('F2', 'Forward Primer', $formats->{header});
-#        $di_worksheet->write('G2', 'Reverse Primer', $formats->{header});
-#        $di_worksheet->write('H2', 'Forward Tm', $formats->{header});
-#        $di_worksheet->write('I2', 'Reverse Tm', $formats->{header});
-#        $di_worksheet->write('J2', 'Fragment Size', $formats->{header});
-#        #$di_worksheet->write('J2', 'Sequence', $formats->{header});
-#    my $di_index = 3;
-#
-#    my $tri_worksheet = $workbook->add_worksheet("Tri");
-#    $tri_worksheet->set_column('A:A', 60, $formats->{text});
-#    $tri_worksheet->set_column('F:G', 30, $formats->{text});
-#    #$tri_worksheet->set_column('J:J', 100, $formats->{text});
-#    $tri_worksheet->write('A1', "Trinucleotide Repeats for $project", $formats->{header});
-#    $tri_worksheet->write('A2', 'Sequence Name', $formats->{header});
-#        $tri_worksheet->write('B2', 'Motif', $formats->{header});
-#        $tri_worksheet->write('C2', '# Repeats', $formats->{header});
-#        $tri_worksheet->write('D2', 'Start', $formats->{header});
-#        $tri_worksheet->write('E2', 'End', $formats->{header});
-#        $tri_worksheet->write('F2', 'Forward Primer', $formats->{header});
-#        $tri_worksheet->write('G2', 'Reverse Primer', $formats->{header});
-#        $tri_worksheet->write('H2', 'Forward Tm', $formats->{header});
-#        $tri_worksheet->write('I2', 'Reverse Tm', $formats->{header});
-#        $tri_worksheet->write('J2', 'Fragment Size', $formats->{header});
-#        #$tri_worksheet->write('J2', 'Sequence', $formats->{header});
-#    my $tri_index = 3;
-#
-#    my $tetra_worksheet = $workbook->add_worksheet("Tetra");
-#    $tetra_worksheet->set_column('A:A', 60, $formats->{text});
-#    $tetra_worksheet->set_column('F:G', 30, $formats->{text});
-#    #$tetra_worksheet->set_column('J:J', 100, $formats->{text});
-#    $tetra_worksheet->write('A1', "Tetranucleotide Repeats for $project", $formats->{header});
-#    $tetra_worksheet->write('A2', 'Sequence Name', $formats->{header});
-#        $tetra_worksheet->write('B2', 'Motif', $formats->{header});
-#        $tetra_worksheet->write('C2', '# Repeats', $formats->{header});
-#        $tetra_worksheet->write('D2', 'Start', $formats->{header});
-#        $tetra_worksheet->write('E2', 'End', $formats->{header});
-#        $tetra_worksheet->write('F2', 'Forward Primer', $formats->{header});
-#        $tetra_worksheet->write('G2', 'Reverse Primer', $formats->{header});
-#        $tetra_worksheet->write('H2', 'Forward Tm', $formats->{header});
-#        $tetra_worksheet->write('I2', 'Reverse Tm', $formats->{header});
-#        $tetra_worksheet->write('J2', 'Fragment Size', $formats->{header});
-#        #$tetra_worksheet->write('J2', 'Sequence', $formats->{header});
-#    my $tetra_index = 3;
-#
+###############################################################
+sub initiate_workbooks{
+    my $workbook = $_[0]; # file name
+    my $formats  = $_[1]; # file name
+    my $project  = $_[2]; # file name
+
+	my $di_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Dinucleotide");
+	my $tri_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Trinucleotide");
+	my $tetra_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Tetranucleotide");
+
+	return($di_worksheet, $tri_worksheet, $tetra_worksheet);
+}
+sub _initiate_worksheet{
+    my $workbook = $_[0];
+    my $formats  = $_[1];
+    my $project  = $_[2];
+	my $name     = $_[3];
+
+    my $worksheet = $workbook->add_worksheet($name);
+    $worksheet->set_column('A:A', 60, $formats->{text});
+    $worksheet->set_column('F:G', 30, $formats->{text});
+    #$worksheet->set_column('J:J', 100, $formats->{text});
+    $worksheet->write('A1', "$name Repeats for $project", $formats->{header});
+    $worksheet->write('A2', 'Sequence Name', $formats->{header});
+	$worksheet->write('B2', 'Motif', $formats->{header});
+    $worksheet->write('C2', '# Repeats', $formats->{header});
+    $worksheet->write('D2', 'Start', $formats->{header});
+    $worksheet->write('E2', 'End', $formats->{header});
+    $worksheet->write('F2', 'Forward Primer', $formats->{header});
+    $worksheet->write('G2', 'Reverse Primer', $formats->{header});
+    $worksheet->write('H2', 'Forward Tm', $formats->{header});
+    $worksheet->write('I2', 'Reverse Tm', $formats->{header});
+    $worksheet->write('J2', 'Fragment Size', $formats->{header});
+    #$worksheet->write('J2', 'Sequence', $formats->{header});
+
+	return $worksheet;
+}
+
+
 #                    my $multi_flag = 0;
 #                    ## skip contigs with more than one ssr
 #                    if(scalar @{ $CONTIG_SSR_STARTS{$contig}} == 1){
