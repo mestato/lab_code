@@ -155,13 +155,13 @@ my $SSR_COUNT = 0;
 my $SSR_COUNT_COMPOUND = 0;
 my $SSR_COUNT_PRIMER = 0;
 
-my %MOTIFLEN = ('2'  => 0,
-                '3'  => 0,
-                '4'  => 0);
+my %MOTIFLEN = (2  => 0,
+                3  => 0,
+                4  => 0);
 
-my %MOTIFLEN_w_PRIMERS = ('2'  => 0,
-                          '3'  => 0,
-                          '4'  => 0);
+my %MOTIFLEN_w_PRIMERS = (2  => 0,
+                          3  => 0,
+                          4  => 0);
 my %MOTIFS = ('|AT|TA|'                   => 0,
               '|AG|GA|CT|TC|'             => 0,
               '|AC|CA|TG|GT|'             => 0,
@@ -171,7 +171,7 @@ my %MOTIFS = ('|AT|TA|'                   => 0,
               '|AAG|AGA|GAA|CTT|TTC|TCT|' => 0,
               '|AAC|ACA|CAA|GTT|TTG|TGT|' => 0,
 
-              '|CCA|CAC|CCA|TGG|GTG|TGG|' => 0,
+              '|CCA|CAC|ACC|TGG|GTG|GGT|' => 0,
               '|GGC|GCG|CGG|GCC|CCG|CGC|' => 0,
               '|AGG|GAG|GGA|CCT|CTC|TCC|' => 0,
 
@@ -236,6 +236,7 @@ sub main{
 	addToPrimer3InputFile ($p3_input);
     print "$PRIMER3 < $p3_input > $p3_output\n";
     my $status = system("$PRIMER3 < $p3_input > $p3_output");
+	print "$status\n";
     parseP3_output($p3_output);
     print "done.\n";
 
@@ -248,24 +249,17 @@ sub main{
 	##---------------------------------------------------------------
 	## Producing output - statistics
 
-	calculate_stats($stats_out);
+	calculate_stats();
+	print_stats($stats_out);
 
 
 	##---------------------------------------------------------------
 	## Producing output - Excel
+	#create_excel_file($ssr_xlsx);
 
-#    print "creating Excel workbook...";
-#    my ($workbook,$formats) = createExcelWorkbook($ssr_xlsx);
-#    print "done.\n";
-#
-#    print "generate output...";
-#	# generate filehandles
-#	my ($di_worksheet, $tri_worksheet, $tetra_worksheet) = initiate_workbooks($workbook, $formats, $project);
-#    print "done.\n";
-
-	#print "stats...\n";
+	#my ($workbook,$formats) = createExcelWorkbook($ssr_xlsx);
+	#initiate_workbooks($workbook, $formats, $project);
 	#my $worksheet_stats = printStats($stats_out, $workbook, $formats, $project);
-	#
 	#$worksheet_stats->activate();
 	#$worksheet_stats->select();
 	#$workbook->close();
@@ -702,7 +696,7 @@ sub create_flat_files{
 			$SSR_STATS{$ssr_id}{MOTIF},
 			$SSR_STATS{$ssr_id}{NO_REPEATS},
 			$SSR_STATS{$ssr_id}{START},
-				$SSR_STATS{$ssr_id}{END},
+			$SSR_STATS{$ssr_id}{END},
 		);
 		print OUTS "\n";
 
@@ -711,13 +705,13 @@ sub create_flat_files{
 		if($SSR_STATS{$ssr_id}{COMPOUND} == 0 &&
 			$SSR_STATS{$ssr_id}{FORWARD} =~ /\S/
 		){
-			if(length $SSR_STATS{$ssr_id}{MOTIF_LEN} == 2){
+			if($SSR_STATS{$ssr_id}{MOTIF_LENGTH} == 2){
 				_print_primer_flat_file_line($di_fh, $ssr_id);
 			}
-			elsif(length $SSR_STATS{$ssr_id}{MOTIF_LEN} == 3){
+			elsif($SSR_STATS{$ssr_id}{MOTIF_LENGTH} == 3){
 				_print_primer_flat_file_line($tri_fh, $ssr_id);
 			}
-			elsif(length $SSR_STATS{$ssr_id}{MOTIF_LEN} == 4){
+			elsif($SSR_STATS{$ssr_id}{MOTIF_LENGTH} == 4){
 				_print_primer_flat_file_line($tetra_fh, $ssr_id);
 			}
 		}
@@ -787,25 +781,27 @@ sub calculate_stats{
 			$SSR_COUNT_COMPOUND++;
 		}
 		else{
-			$MOTIFLEN{ $SSR_STATS{$ssr_id}{MOTIFLEN} }++;
+			my $motif_len = $SSR_STATS{$ssr_id}{MOTIF_LENGTH} ;
+			#print "motif length is $motif_len\n";
+			$MOTIFLEN{$motif_len}++;
 
 			my $motifUC = uc($SSR_STATS{$ssr_id}{MOTIF});
 			foreach my $group (keys %MOTIFS) {
 				if($group =~ /\|$motifUC\|/){
-					print "Incrementing $group for $motifUC\n";
+					#print "Incrementing $group for $motifUC\n";
 					$MOTIFS{$group}++;
 				}
 			}
 
 			if($SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){
 				$SSR_COUNT_PRIMER++;
-				$MOTIFLEN_w_PRIMERS{ $SSR_STATS{$ssr_id}{MOTIFLEN} }++;
+				$MOTIFLEN_w_PRIMERS{$motif_len}++;
 			}
 		}
 	}
 
 }
-sub printStats{
+sub print_stats{
     my $stats_out = $_[0]; # file name
 
     open (OUTS, ">".$stats_out) || die "ERROR cannot open $stats_out\n";
@@ -813,12 +809,17 @@ sub printStats{
     print OUTS 'SSR Summary Report\n';
     print OUTS "Analsis of $SEQ_COUNT sequences\n";
     print OUTS "$TIME\n";
+	print OUTS "\n";
     print OUTS "Number of sequences with at least one SSR\t$SEQ_w_SSRS\n";
-    print OUTS "Number of SSRs identified\t$SSR_COUNT\n\n";
-    print OUTS "Number of compound SSRs: $SSR_COUNT_COMPOUND\n";
-    print OUTS "Number of SSRs with primers*: $SSR_COUNT_COMPOUND\n";
-    print OUTS "*No primers are designed for compound SSRs\n";
+    print OUTS "Number of SSRs identified\t$SSR_COUNT\n";
+	print OUTS "\n";
+    print OUTS "Number of compound SSRs*: $SSR_COUNT_COMPOUND\n";
+    print OUTS "Number of SSRs with primers**: $SSR_COUNT_PRIMER\n";
+	print OUTS "\n";
+	print OUTS "*Compound SSRs are defined as any SSRs next to each or separated by less than 15 bases\n";
+    print OUTS "**No primers are designed for compound SSRs\n";
     print OUTS "\n";
+	print OUTS "Parameters used for identifying SSRS:\n";
     print OUTS "Base Pairs in Motif\tMin # Reps\tMax # Reps\n";
     print OUTS "--------------------------------------\n";
     print OUTS "2 (Dinucleotides)\t$MIN_REPS_2bp\t$MAX_REPS_2bp\n";
@@ -834,15 +835,16 @@ sub printStats{
         print OUTS "$group\t$MOTIFS{$group}\n";
     }
     print OUTS "\n";
-    print OUTS "Motif Pattern Length\tNumber of SSRs Found\n";
+    print OUTS "Motif Pattern Length\tNumber of SSRs\n";
     print OUTS "--------------------------------------\n";
 
     foreach $group (sort keys %MOTIFLEN){
         print OUTS "$group\t$MOTIFLEN{$group}\n";
     }
 
-    print OUTS "SSRS with PRIMERS\n";
-    print OUTS "Motif Pattern Length\tNumber of SSRs Found\n";
+    print OUTS "\n";
+    print OUTS "SSRS with Primers \n";
+    print OUTS "Motif Pattern Length\tNumber of SSRs\n";
     print OUTS "--------------------------------------\n";
 
     foreach $group (sort keys %MOTIFLEN_w_PRIMERS){
@@ -864,7 +866,9 @@ sub printStats{
 #	my $tri_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Trinucleotide");
 #	my $tetra_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Tetranucleotide");
 #
-#	return($di_worksheet, $tri_worksheet, $tetra_worksheet);
+#	_print_worksheet($di_worksheet, $formats, $project);
+#	_print_worksheet($tri_worksheet, $formats, $project);
+#	_print_worksheet($tetra_worksheet, $formats, $project);
 #}
 ################################################################
 #sub _initiate_worksheet{
@@ -1175,45 +1179,45 @@ sub printStats{
 #}
 #
 ################################################################
-#
-#sub createExcelWorkbook{
-#
-#    my $ssr_xlsx = $_[0];
-#
-#    my $workbook;        # the excel workbook
-#    my %formats;
-#    my %header;
-#    my %text;
-#    my %bigheader;
-#    my %highlight;
-#
-#
-#    # Create an excel workbook
-#    $workbook = Excel::Writer::XLSX->new("$ssr_xlsx");
-#
-#    # Setup the four formats that will be necessary for the excel spreadsheet
-#    %header = (font         => 'Calibri',
-#                size         => 12,
-#                bold         => 1,
-#                color        => 'black',
-#                align        => 'left',
-#                text_wrap    => 1);
-#
-#    %text = (font         => 'Calibri',
-#                size         => 12,
-#                color        => 'black',
-#                align        => 'left',
-#                text_wrap    => 1);
-#
-#    #add the formats to the workbook
-#    $formats{header} = $workbook->add_format(%header);
-#    $formats{text} = $workbook->add_format(%text);
-#
-#    return ($workbook,\%formats);
-#
-#}
-#
-#
+
+sub createExcelWorkbook{
+
+    my $ssr_xlsx = $_[0];
+
+    my $workbook;        # the excel workbook
+    my %formats;
+    my %header;
+    my %text;
+    my %bigheader;
+    my %highlight;
+
+
+    # Create an excel workbook
+    $workbook = Excel::Writer::XLSX->new("$ssr_xlsx");
+
+    # Setup the formats that will be necessary for the excel spreadsheet
+    %header = (font         => 'Calibri',
+                size         => 12,
+                bold         => 1,
+                color        => 'black',
+                align        => 'left',
+                text_wrap    => 1);
+
+    %text = (font         => 'Calibri',
+                size         => 12,
+                color        => 'black',
+                align        => 'left',
+                text_wrap    => 1);
+
+    #add the formats to the workbook
+    $formats{header} = $workbook->add_format(%header);
+    $formats{text} = $workbook->add_format(%text);
+
+    return ($workbook,\%formats);
+
+}
+
+
 ################################################################
 #sub _printUsage {
 #    print "Usage: $0.pl <arguments>";
