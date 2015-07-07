@@ -230,21 +230,14 @@ sub main{
 
 	##---------------------------------------------------------------
     print "finding SSRs...\n";
-    open(PI3, ">$p3_input") or die $!;
-    my $p3_input_fh = *PI3;
     process_file($fasta_file, $masked_file);
-    close PI3;
-
-	collapse_compound_SSRs();
-	# this subroutine accomplishes two things
-	# 1. adds a MULTI flag to the data hash indicating if the
-	# ssr is the only one in the sequence or one of many
-	# 2. prints a fasta file with sequences with a single ssr
-	# and another with sequences with multiple ssrs
-    print "identifying sequences with >1 SSR...";
-    flag_multiSSRs($fasta_out);
+	collapse_compound_ssrs();
+    flag_multiSSRs();
     print "done.\n";
 
+	#open(PI3, ">$p3_input") or die $!;
+	#my $p3_input_fh = *PI3;
+	#close PI3;
 
 #    print "running primer3...\n";
 #    print "$PRIMER3 < $p3_input > $p3_output\n";
@@ -256,6 +249,7 @@ sub main{
 
 	##---------------------------------------------------------------
 	## Producing output - Fasta files and flat files
+    #($fasta_out);
 
 	#print "printing output files...";
 	#create_primer_flat_files ($di_primer_out, $tri_primer_out, $tetra_primer_out);
@@ -434,15 +428,8 @@ sub process_ssr{
 	my $num_of_repeats = ($end_index-$start_index)/$motif_len;
     my $ssr_id = $contig_name."_ssr".$start_index;
 
-	#print "$contig_name $ssr $motif\n";
-	#print "Start: $start_index\n";
-	#print "End: $end_index\n";
-
 	##-------------------------------------
 	## store in data structures
-
-    $SSR_COUNT++;
-    $MOTIFLEN{$motif_len}++;
 
     if(exists $CONTIG_SSR_STARTS{$contig_name}){
         push @{ $CONTIG_SSR_STARTS{$contig_name} }, $start_index;
@@ -458,25 +445,115 @@ sub process_ssr{
 	$SSR_STATS{$ssr_id}{NO_REPEATS}   = $num_of_repeats;
 	$SSR_STATS{$ssr_id}{SEQ}          = $seq;
 	$SSR_STATS{$ssr_id}{SEQM}         = $seq_masked;
+	$SSR_STATS{$ssr_id}{COMPOUND}     = "FALSE"; #assume its not until proven otherwise
 
-	foreach my $group (keys %MOTIFS) {
-		my $motifUC = uc($motif);
-		if($group =~ /\|$motifUC\|/){
-			# If this group contains this motif
-			#print "Incrementing $group for $motif\n";
-			$MOTIFS{$group}++;
-		}
-	}
 
 }
 
 #######################################################
-#sub collapse_compound_ssrs{
-#}
-#
-#
+sub collapse_compound_ssrs{
+	foreach my $contig (keys %CONTIG_SSR_STARTS){
+		my @starts = @{ $CONTIG_SSR_STARTS{$contig}};
+		if(@starts > 1){
+			## this contig has multiple ssrs
+			my $previous_start = -1;
+			my $previous_end = -1;
+			my $previous_ssr_id = "";
+
+			my $current_start = -1;
+			my $current_end = -1;
+			my $current_ssr_id = "";
+
+			foreach $current_start (sort {$a <=> $b} @starts){
+				$current_ssr_id = $contig."_ssr".$current_start;
+				$current_end = $SSR_STATS{$current_ssr_id}{END};
+
+				if(too_close($previous_start, $previous_end, $current_start, $current_end)){
+						collapse($contig, $previous_ssr_id, $current_ssr_id);
+				}
+
+				$previous_start = $current_start;
+				$previous_end = $current_end;
+				$previous_ssr_id = $current_ssr_id;
+			}
+		}
+	}
+}
+
 ################################################################
-#sub flag_multiSSRs{
+sub too_close{
+	my $previous_start = shift;
+	my $previous_end = shift;
+	my $current_start = shift;
+	my $current_end  = shift;
+
+	# if start is a -1, then go ahead and return ok
+	if($previous_start == -1){
+		return 0;
+	}
+	# we want to know if they overlap, abut or are less than 15 bases apart
+	elsif($previous_end >= $current_start ||
+		($current_start - $previous_end) < 15){
+		return 1;
+	}
+	else{
+		return 0;
+	}
+}
+################################################################
+sub collapse{
+	my $contig = shift;
+	my $first_ssr_id = shift;
+	my $second_ssr_id = shift;
+
+	##fix SSR_STATS
+	$SSR_STATS{$first_ssr_id}{MOTIF}        = "COMPOUND";
+	$SSR_STATS{$first_ssr_id}{END}          = $SSR_STATS{$second_ssr_id}{END};
+	$SSR_STATS{$first_ssr_id}{MOTIF_LENGTH} = "COMPOUND";
+	$SSR_STATS{$first_ssr_id}{NO_REPEATS}   = "COMPOUND";
+	$SSR_STATS{$first_ssr_id}{COMPOUND}     = "TRUE"; #assume its not until proven otherwise
+
+	delete $SSR_STATS{$second_ssr_id};
+	print "deleting $second_ssr_id, part of compound ssr\n";
+
+	##fix CONTIG_SSR_STARTS
+	# get rid of the start index for the second ssr (it is now part of the
+	# first ssr)
+
+	my $index = 0;
+	my $second_ssr_start = $SSR_STATS{$second_ssr_id}{START};
+	$index++ until $CONTIG_SSR_STARTS{$contig}[$index] == $second_ssr_start;
+	splice(@{$CONTIG_SSR_STARTS{$contig}}, $index, 1);
+
+}
+
+
+################################################################
+sub flag_multiSSRs{
+	# adds a MULTI flag to the data hash indicating if the
+	# ssr is the only one in the sequence or one of many
+
+	foreach my $contig (keys %CONTIG_SSR_STARTS){
+		my @starts = @{ $CONTIG_SSR_STARTS{$contig}};
+		if(@starts == 1){
+			## this contig has only one ssr
+			my $start_index = $starts[0];
+			my $ssr_id = $contig."_ssr".$start_index;
+			$SSR_STATS{$ssr_id}{MULTI} = "False";
+		}
+		else{
+			## this contig has multiple ssrs
+			foreach my $start_index (@starts){
+				my $ssr_id = $contig."_ssr".$start_index;
+				$SSR_STATS{$ssr_id}{MULTI} = "True";
+			}
+		}
+	}
+	close FASTA;
+
+}
+################################################################
+#sub printFasta{
 #	my $fasta_out = shift;
 #
 #	# this subroutine accomplishes two things
@@ -733,6 +810,14 @@ sub process_ssr{
 #
 #
 #}
+	#foreach my $group (keys %MOTIFS) {
+	#	my $motifUC = uc($motif);
+	#	if($group =~ /\|$motifUC\|/){
+	#		# If this group contains this motif
+	#		#print "Incrementing $group for $motif\n";
+	#		$MOTIFS{$group}++;
+	#	}
+	#}
 ##
 ##                            $di_worksheet->write("A$di_index", $contig, $formats->{text});
 ##                                $di_worksheet->write("B$di_index", $motif, $formats->{text});
