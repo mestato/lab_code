@@ -188,21 +188,12 @@ main();
 # Function Name:  main()
 
 sub main{
+
+	##---------------------------------------------------------------
+	## Get input parameters
     my $fasta_file;
     my $masked_file;
     my $project;
-
-    my $p3_input;
-    my $p3_output;
-
-    my $ssr_out;  # the tab-delimited output file
-    my $ssr_xlsx;
-    my $fasta_out;
-    my $stats_out;
-
-    my $di_primer_out;
-    my $tri_primer_out;
-    my $tetra_primer_out;
 
     Getopt::Long::Configure ('bundling');
     GetOptions('f|fasta_file=s'  => \$fasta_file,
@@ -217,17 +208,17 @@ sub main{
     if(! -e $fasta_file) { print "Fasta file $fasta_file does not exist\n"; exit; }
     if(! -e $masked_file) { print "Masked file $masked_file does not exist\n"; exit; }
 
-    $p3_input  = "$fasta_file.p3in.txt";
-    $p3_output = "$fasta_file.p3out.txt";
-
-    $ssr_out          = "$fasta_file.ssr_report.txt";
-    $fasta_out        = "$fasta_file.ssr.fasta";
-    $stats_out        = "$fasta_file.ssr_stats.txt";
-    $di_primer_out    = "$fasta_file.di_primer_report.txt";
-    $tri_primer_out   = "$fasta_file.tri_primer_report.txt";
-    $tetra_primer_out = "$fasta_file.tetra_primer_report.txt";
-
-    $ssr_xlsx         = "$fasta_file.ssr_report.xlsx";
+	##---------------------------------------------------------------
+	## Set up output files
+    my $p3_input         = "$fasta_file.p3in.txt";
+    my $p3_output        = "$fasta_file.p3out.txt";
+    my $ssr_out          = "$fasta_file.ssr_report.txt";
+    my $fasta_out        = "$fasta_file.ssr.fasta";
+    my $stats_out        = "$fasta_file.ssr_stats.txt";
+    my $di_primer_out    = "$fasta_file.di_primer_report.txt";
+    my $tri_primer_out   = "$fasta_file.tri_primer_report.txt";
+    my $tetra_primer_out = "$fasta_file.tetra_primer_report.txt";
+    my $ssr_xlsx         = "$fasta_file.ssr_report.xlsx";
 
 	##---------------------------------------------------------------
     print "finding SSRs...\n";
