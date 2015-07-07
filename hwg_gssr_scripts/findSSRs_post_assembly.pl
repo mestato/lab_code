@@ -270,9 +270,6 @@ sub main{
 	##---------------------------------------------------------------
 	## Producing output - Fasta files and flat files
 
-    print "printing output files...";
-	create_primer_flat_files ($di_primer_out, $tri_primer_out, $tetra_primer_out);
-
 	# this subroutine accomplishes two things
 	# 1. adds a MULTI flag to the data hash indicating if the
 	# ssr is the only one in the sequence or one of many
@@ -281,6 +278,10 @@ sub main{
     print "identifying sequences with >1 SSR...";
     flag_multiSSRs($fasta_out_single, $fasta_out_multi);
     print "done.\n";
+
+    print "printing output files...";
+	create_primer_flat_files ($di_primer_out, $tri_primer_out, $tetra_primer_out);
+
 
 	##---------------------------------------------------------------
 	## Producing output - statistics
@@ -720,8 +721,8 @@ sub _print_primer_flat_files{
 				$SSR_STATS{$ssr_id}{LEFT_TM},
 				$SSR_STATS{$ssr_id}{RIGHT_TM},
 				$SSR_STATS{$ssr_id}{PRODUCT_SIZE},
-				$SSR_STATS{$ssr_id}{SEQ},
-				$SSR_STATS{$ssr_id}{SEQM}
+				#$SSR_STATS{$ssr_id}{SEQ},
+				#$SSR_STATS{$ssr_id}{SEQM}
 			);
 		}
 	}
