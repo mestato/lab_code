@@ -235,11 +235,8 @@ sub main{
     flag_multiSSRs();
     print "done.\n";
 
-	#open(PI3, ">$p3_input") or die $!;
-	#my $p3_input_fh = *PI3;
-	#close PI3;
-
-#    print "running primer3...\n";
+    print "running primer3...\n";
+	addToPrimer3InputFile ($p3_input);
 #    print "$PRIMER3 < $p3_input > $p3_output\n";
 #    my $status = system("$PRIMER3 < $p3_input > $p3_output");
 #
@@ -287,32 +284,20 @@ sub process_file{
     my $fasta_file  = $_[0]; # file name
     my $masked_file = $_[1]; # file name
 
-    my $seqio;
-    my $seqioM;
-
-    my $seqobj;
-    my $seqobjM;
-
-    my $seqname;
-    my $seqnameM;
-
-    my $seqstr;
-    my $seqstrM;
-
-    $seqio = Bio::SeqIO->new('-format' => 'fasta', -file => $fasta_file);
-    $seqioM = Bio::SeqIO->new('-format' => 'fasta', -file => $masked_file);
+    my $seqio = Bio::SeqIO->new('-format' => 'fasta', -file => $fasta_file);
+    my $seqioM = Bio::SeqIO->new('-format' => 'fasta', -file => $masked_file);
 
     # Get seq obj from io stream
-    while($seqobj = $seqio->next_seq){
-        $seqobjM = $seqioM->next_seq;
+    while(my $seqobj = $seqio->next_seq){
+        my $seqobjM = $seqioM->next_seq;
 
         $SEQ_COUNT++;
 
-        $seqname = $seqobj->id;        # get actual sequence as a string
-        $seqnameM = $seqobjM->id;        # get actual sequence as a string
+        my $seqname = $seqobj->id;        # get actual sequence as a string
+        my $seqnameM = $seqobjM->id;        # get actual sequence as a string
 
-        $seqstr = $seqobj->seq();        # get actual sequence as a string
-        $seqstrM = $seqobjM->seq();        # get actual sequence as a string
+        my $seqstr = $seqobj->seq();        # get actual sequence as a string
+        my $seqstrM = $seqobjM->seq();        # get actual sequence as a string
 
         if($seqname ne $seqnameM){
             die "masked sequence $seqnameM not in same order as regular sequence $seqname\n";
@@ -552,6 +537,50 @@ sub flag_multiSSRs{
 	close FASTA;
 
 }
+
+################################################################
+sub addToPrimer3InputFile{
+    my $p3_file = shift;
+
+	open OUT, ">$p3_file";
+
+	foreach my $ssr_id (keys %SSR_STATS){
+		#skip compound SSRS
+		if($SSR_STATS{$ssr_id}{COMPOUND} == 'FALSE'){
+			my $ssrStart   = $SSR_STATS{$ssr_id}{START};
+			my $ssrEnd     = $SSR_STATS{$ssr_id}{END};
+			my $seq        = $SSR_STATS{$ssr_id}{SEQM};
+
+			# change from soft mask to hard mask
+			$seq =~ s/[actg]/N/g;
+
+			my $len         = $ssrEnd-$ssrStart;
+
+			printf OUT ("SEQUENCE_ID=$ssr_id\n");
+    		printf OUT ("SEQUENCE_TEMPLATE=$seq\n");
+    		printf OUT ("SEQUENCE_TARGET=$ssrStart,$len\n");
+    		printf OUT ("PRIMER_TASK=generic\n");
+    		printf OUT ("PRIMER_PICK_LEFT_PRIMER=1\n");
+    		printf OUT ("PRIMER_PICK_INTERNAL_OLIGO=0\n");
+    		printf OUT ("PRIMER_PICK_RIGHT_PRIMER=1\n");
+    		printf OUT ("PRIMER_OPT_SIZE=$PRIMER_OPT_SIZE\n");
+    		printf OUT ("PRIMER_MIN_SIZE=$PRIMER_MIN_SIZE\n");
+    		printf OUT ("PRIMER_MAX_SIZE=$PRIMER_MAX_SIZE\n");
+    		printf OUT ("PRIMER_NUM_NS_ACCEPTED=$PRIMER_NUM_NS_ACCEPTED\n");
+    		printf OUT ("PRIMER_PRODUCT_SIZE_RANGE=$PRIMER_PRODUCT_SIZE_RANGE\n");
+    		printf OUT ("PRIMER_OPT_TM=$PRIMER_OPT_TM\n");
+    		printf OUT ("PRIMER_MIN_TM=$PRIMER_MIN_TM\n");
+    		printf OUT ("PRIMER_MAX_TM=$PRIMER_MAX_TM\n");
+    		printf OUT ("PRIMER_MIN_GC=$PRIMER_MIN_GC\n");
+    		printf OUT ("PRIMER_MAX_GC=$PRIMER_MAX_GC\n");
+    		printf OUT ("PRIMER_MAX_POLY_X=$PRIMER_MAX_POLY_X\n");
+    		printf OUT ("PRIMER_GC_CLAMP=$PRIMER_GC_CLAMP\n");
+    		printf OUT ("PRIMER_THERMODYNAMIC_PARAMETERS_PATH=$PRIMER3_CONFIG\n");
+    		printf OUT ("=\n");
+		}
+	}
+	close OUT;
+}
 ################################################################
 #sub printFasta{
 #	my $fasta_out = shift;
@@ -596,42 +625,7 @@ sub flag_multiSSRs{
 #
 #}
 ################################################################
-##sub _addToPrimer3InputFile{
-##    my $p3_input_fh = shift;
-##    my $contig_name = shift;
-##    my $ssrStart    = shift;
-##    my $ssrEnd      = shift;
-##    my $seq         = shift;
-##
-##	# change from soft mask to hard mask
-##	$seq =~ s/[actg]/N/g;
-##
-##    my $len         = $ssrEnd-$ssrStart;
-##
-##    printf $p3_input_fh ("SEQUENCE_ID=$contig_name\_ssr$ssrStart\n");
-##    printf $p3_input_fh ("SEQUENCE_TEMPLATE=$seq\n");
-##    printf $p3_input_fh ("SEQUENCE_TARGET=$ssrStart,$len\n");
-##    printf $p3_input_fh ("PRIMER_TASK=generic\n");
-##    printf $p3_input_fh ("PRIMER_PICK_LEFT_PRIMER=1\n");
-##    printf $p3_input_fh ("PRIMER_PICK_INTERNAL_OLIGO=0\n");
-##    printf $p3_input_fh ("PRIMER_PICK_RIGHT_PRIMER=1\n");
-##    printf $p3_input_fh ("PRIMER_OPT_SIZE=$PRIMER_OPT_SIZE\n");
-##    printf $p3_input_fh ("PRIMER_MIN_SIZE=$PRIMER_MIN_SIZE\n");
-##    printf $p3_input_fh ("PRIMER_MAX_SIZE=$PRIMER_MAX_SIZE\n");
-##    printf $p3_input_fh ("PRIMER_NUM_NS_ACCEPTED=$PRIMER_NUM_NS_ACCEPTED\n");
-##    printf $p3_input_fh ("PRIMER_PRODUCT_SIZE_RANGE=$PRIMER_PRODUCT_SIZE_RANGE\n");
-##    printf $p3_input_fh ("PRIMER_OPT_TM=$PRIMER_OPT_TM\n");
-##    printf $p3_input_fh ("PRIMER_MIN_TM=$PRIMER_MIN_TM\n");
-##    printf $p3_input_fh ("PRIMER_MAX_TM=$PRIMER_MAX_TM\n");
-##    printf $p3_input_fh ("PRIMER_MIN_GC=$PRIMER_MIN_GC\n");
-##    printf $p3_input_fh ("PRIMER_MAX_GC=$PRIMER_MAX_GC\n");
-##    printf $p3_input_fh ("PRIMER_MAX_POLY_X=$PRIMER_MAX_POLY_X\n");
-##    printf $p3_input_fh ("PRIMER_GC_CLAMP=$PRIMER_GC_CLAMP\n");
-##    printf $p3_input_fh ("PRIMER_THERMODYNAMIC_PARAMETERS_PATH=$PRIMER3_CONFIG\n");
-##    printf $p3_input_fh ("=\n");
-##
-##}
-#
+
 ################################################################
 #sub parseP3_output{
 #    my $p3_output = $_[0]; # file name
