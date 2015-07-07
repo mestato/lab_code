@@ -265,6 +265,10 @@ sub main{
     parseP3_output($p3_output);
     print "done.\n";
 
+    print "identifying sequences with >1 SSR...";
+    flag_multiSSRs();
+    print "done.\n";
+
 	##---------------------------------------------------------------
 	## Producing output - statistics
 
@@ -636,6 +640,30 @@ sub parseP3_output{
 }
 
 ###############################################################
+sub flag_multiSSRs{
+
+	foreach my $contig (keys %CONTIG_SSR_STARTS){
+		print "contig: $contig\n";
+		my @starts = @{ $CONTIG_SSR_STARTS{$contig}};
+		print "starts: @starts\n";
+		if(@starts == 1){
+			my $start_index = $starts[0];
+			my $ssr_id = $contig."_ssr".$start_index;
+			$SSR_STATS{$ssr_id}{MULTI} = "False";
+			print "\t$ssr_id:FALSE\n";
+		}
+		else{
+			foreach my $start_index (@starts){
+				my $ssr_id = $contig."_ssr".$start_index;
+				$SSR_STATS{$ssr_id}{MULTI} = "True";
+				print "\t$ssr_id:TRUE\n";
+			}
+		}
+	}
+
+}
+
+###############################################################
 sub initiate_workbooks{
     my $workbook = $_[0]; # file name
     my $formats  = $_[1]; # file name
@@ -680,9 +708,6 @@ sub _print_worksheet{
 
 
 }
-#                    my $multi_flag = 0;
-#                    ## skip contigs with more than one ssr
-#                    if(scalar @{ $CONTIG_SSR_STARTS{$contig}} == 1){
 #                        print $fastaout_fh ">$contig $motif.$ssrStart-$ssrEnd\n$seq\n";
 #                        #print "\t$forward\n";
 #                        $SSR_w_PRIMER_COUNT++;
