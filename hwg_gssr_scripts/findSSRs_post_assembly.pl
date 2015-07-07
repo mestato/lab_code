@@ -879,11 +879,13 @@ sub create_excel_file{
     my $header_format = $workbook->add_format(%header);
     my $text_format = $workbook->add_format(%text);
 
-	$workbook = create_stats_worksheet($workbook, $header_format, $text_format, $project);
+	my $worksheet_stats = create_stats_worksheet($workbook, $header_format, $text_format, $project);
 
-	#my $di_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Dinucleotide");
-	#my $tri_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Trinucleotide");
-	#my $tetra_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Tetranucleotide");
+	build_data_worksheets($workbook, $header_format, $text_format);
+
+	$worksheet_stats->activate();
+	$worksheet_stats->select();
+	$workbook->close();
 
 
 }
@@ -988,191 +990,115 @@ sub create_stats_worksheet{
         $worksheet->write("B$i", $MOTIFLEN_w_PRIMERS{$group});
     }
 
+	return $worksheet;
+}
+
+##############################################################
+sub build_data_worksheets{
+    my $workbook      = shift;
+    my $header_format = shift;
+    my $text_format   = shift;
+
+	my $di_worksheet  =  _initiate_worksheet($workbook, $header_format, $text_format, "Dinucleotides");
+	my $tri_worksheet  =  _initiate_worksheet($workbook, $header_format, $text_format, "Trinucleotides");
+	my $tetra_worksheet  =  _initiate_worksheet($workbook, $header_format, $text_format, "Tetranucleotides");
+
+	my $di_index = 3;
+	my $tri_index = 3;
+	my $tetra_index = 3;
+
+	foreach my $ssr_id (keys %SSR_STATS){
+		# for excel data files, only print SSRs 
+		# that have primers
+		if($SSR_STATS{$ssr_id}{COMPOUND} == 0 &&
+			$SSR_STATS{$ssr_id}{FORWARD} =~ /\S/
+		){
+			if($SSR_STATS{$ssr_id}{MOTIF_LENGTH} == 2){
+				_print_excel_file_line($di_worksheet, $di_index, $ssr_id);
+				$di_index++;
+			}
+			elsif($SSR_STATS{$ssr_id}{MOTIF_LENGTH} == 3){
+				_print_excel_file_line($tri_worksheet, $tri_index, $ssr_id);
+				$tri_index++;
+			}
+			elsif($SSR_STATS{$ssr_id}{MOTIF_LENGTH} == 4){
+				_print_excel_file_line($tetra_worksheet, $tetra_index, $ssr_id);
+				$tetra_index++;
+			}
+		}
+	}
+
+
+}
+
+##############################################################
+sub _initiate_worksheet{
+    my $workbook      = $_[0];
+    my $header_format = $_[1];
+    my $text_format   = $_[2];
+	my $name          = $_[3];
+
+    my $worksheet = $workbook->add_worksheet($name);
+    $worksheet->set_column('A:A', 60, $text_format);
+    $worksheet->set_column('B:E', 10, $text_format);
+    $worksheet->set_column('F:G', 30, $text_format);
+    $worksheet->set_column('H:J', 10, $text_format);
+
+    $worksheet->write('A1', "$name with primers", $header_format);
+    $worksheet->write('A2', 'SSR ID', $header_format);
+	$worksheet->write('B2', 'Motif', $header_format);
+    $worksheet->write('C2', '# Repeats', $header_format);
+    $worksheet->write('D2', 'Start', $header_format);
+    $worksheet->write('E2', 'End', $header_format);
+    $worksheet->write('F2', 'Forward Primer', $header_format);
+    $worksheet->write('G2', 'Reverse Primer', $header_format);
+    $worksheet->write('H2', 'Forward Tm', $header_format);
+    $worksheet->write('I2', 'Reverse Tm', $header_format);
+    $worksheet->write('J2', 'Fragment Size', $header_format);
+
+	return $worksheet;
 }
 
 
-#sub _initiate_worksheet{
-#    my $workbook = $_[0];
-#    my $formats  = $_[1];
-#    my $project  = $_[2];
-#	my $name     = $_[3];
-#
-#    my $worksheet = $workbook->add_worksheet($name);
-#    $worksheet->set_column('A:A', 60, $formats->{text});
-#    $worksheet->set_column('F:G', 30, $formats->{text});
-#    #$worksheet->set_column('J:J', 100, $formats->{text});
-#    $worksheet->write('A1', "$name Repeats for $project", $formats->{header});
-#    $worksheet->write('A2', 'Sequence Name', $formats->{header});
-#	$worksheet->write('B2', 'Motif', $formats->{header});
-#    $worksheet->write('C2', '# Repeats', $formats->{header});
-#    $worksheet->write('D2', 'Start', $formats->{header});
-#    $worksheet->write('E2', 'End', $formats->{header});
-#    $worksheet->write('F2', 'Forward Primer', $formats->{header});
-#    $worksheet->write('G2', 'Reverse Primer', $formats->{header});
-#    $worksheet->write('H2', 'Forward Tm', $formats->{header});
-#    $worksheet->write('I2', 'Reverse Tm', $formats->{header});
-#    $worksheet->write('J2', 'Fragment Size', $formats->{header});
-#    #$worksheet->write('J2', 'Sequence', $formats->{header});
-#
-#	return $worksheet;
-#}
-
-
-	#my $worksheet_stats = printStats($stats_out, $workbook, $formats, $project);
-	#$worksheet_stats->activate();
-	#$worksheet_stats->select();
-	#$workbook->close();
-#sub initiate_workbooks{
-#    my $workbook = $_[0]; # file name
-#    my $formats  = $_[1]; # file name
-#    my $project  = $_[2]; # file name
-#
-#	_print_worksheet($di_worksheet, $formats, $project);
-#	_print_worksheet($tri_worksheet, $formats, $project);
-#	_print_worksheet($tetra_worksheet, $formats, $project);
-#}
 ################################################################
+sub _print_excel_file_line{
+	my $worksheet = shift;
+	my $index = shift;
+	my $ssr_id = shift;
 
-#sub _print_worksheet{
-#    my $worksheet = $_[0];
-#    my $formats   = $_[1];
-#	my $name      = $_[2];
-#
-#
-#}
-	#foreach my $group (keys %MOTIFS) {
-	#	my $motifUC = uc($motif);
-	#	if($group =~ /\|$motifUC\|/){
-	#		# If this group contains this motif
-	#		#print "Incrementing $group for $motif\n";
-	#		$MOTIFS{$group}++;
-	#	}
-	#}
-##
-##                            $di_worksheet->write("A$di_index", $contig, $formats->{text});
-##                                $di_worksheet->write("B$di_index", $motif, $formats->{text});
-##                                $di_worksheet->write("C$di_index", $cnt, $formats->{text});
-##                                $di_worksheet->write("D$di_index", $ssrStart, $formats->{text});
-##                                $di_worksheet->write("E$di_index", $ssrEnd, $formats->{text});
-##                                $di_worksheet->write("F$di_index", $forward, $formats->{text});
-##                                $di_worksheet->write("G$di_index", $reverse, $formats->{text});
-##                                $di_worksheet->write("H$di_index", $left_tm, $formats->{text});
-##                                $di_worksheet->write("I$di_index", $right_tm, $formats->{text});
-##                                $di_worksheet->write("J$di_index", $product_size, $formats->{text});
-##                                #$di_worksheet->write("J$di_index", $seq, $formats->{text});
-##                            $di_index++;
-##
-##                            # Increment motif count
-##                            foreach my $group (keys %MOTIFS) {
-##                                my $motifUC = uc($motif);
-##                                if($group =~ /\|$motifUC\|/){
-##                                    # If this group contains this motif
-##                                    my $tmp = $MOTIFS{$group}++;
-##                                    $tmp++;
-##                                    $MOTIFS{$group} = $tmp;
-##                                }
-##                            }# end foreach $group
-##                        }
-##                        elsif(length $motif == 3){
-##                            print $tri_fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
-##                            print $tri_fh "\n";
-##                            my $tmp = $MOTIFLEN_w_PRIMERS{3};
-##                            $tmp++;
-##                            $MOTIFLEN_w_PRIMERS{3} = $tmp;
-##
-##                            my $cnt = ($ssrEnd-$ssrStart+1)/3;
-##                            $tri_worksheet->write("A$tri_index", $contig, $formats->{text});
-##                                $tri_worksheet->write("B$tri_index", $motif, $formats->{text});
-##                                $tri_worksheet->write("C$tri_index", $cnt, $formats->{text});
-##                                $tri_worksheet->write("D$tri_index", $ssrStart, $formats->{text});
-##                                $tri_worksheet->write("E$tri_index", $ssrEnd, $formats->{text});
-##                                $tri_worksheet->write("F$tri_index", $forward, $formats->{text});
-##                                $tri_worksheet->write("G$tri_index", $reverse, $formats->{text});
-##                                $tri_worksheet->write("H$tri_index", $left_tm, $formats->{text});
-##                                $tri_worksheet->write("I$tri_index", $right_tm, $formats->{text});
-##                                $tri_worksheet->write("J$tri_index", $product_size, $formats->{text});
-##                                #$tri_worksheet->write("J$tri_index", $seq, $formats->{text});
-##                            $tri_index++;
-##                        }
-##                        elsif(length $motif == 4){
-##							_printLineToWorksheet();
-##                        }
-##                    }
-##                    else{
-##                        print $fastamulti_fh ">$contig\n$seq\n";
-##                    }
-##                }
-##            }
-##        }
-##    } # end while <INPUT>
-##
-##    close P3O;
-##
-##    return;
-##}
-##
-##################################################################
-##sub _printLineToWorksheet{
-##	my $fh = shift;
-##	my $index = shift;
-##	my $worksheet = shift;
-##
-##	my $contig = shift;
-##	my $motif = shift;
-##	my $ssrStart = shift;
-##	my $ssrEnd = shift;
-##	my $forward = shift;
-##	my $reverse = shift;
-##	my $left_tm = shift;
-##	my $right_tm = shift;
-##	my $product_size = shift;
-##	my $seq = shift;
-##	my $seq_masked = shift;
-##
-##	print $fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
-##	print $fh "\n";
-##	my $tmp = $MOTIFLEN_w_PRIMERS{4};
-##	$tmp++;
-##	$MOTIFLEN_w_PRIMERS{4} = $tmp;
-##
-##	my $cnt = ($ssrEnd-$ssrStart+1)/4;
-##	$worksheet->write("A$index", $contig, $formats->{text});
-##		$worksheet->write("B$index", $motif, $formats->{text});
-##		$worksheet->write("C$index", $cnt, $formats->{text});
-##		$worksheet->write("D$index", $ssrStart, $formats->{text});
-##		$worksheet->write("E$index", $ssrEnd, $formats->{text});
-##		$worksheet->write("F$index", $forward, $formats->{text});
-##		$worksheet->write("G$index", $reverse, $formats->{text});
-##		$worksheet->write("H$index", $left_tm, $formats->{text});
-##		$worksheet->write("I$index", $right_tm, $formats->{text});
-##		$worksheet->write("J$index", $product_size, $formats->{text});
-##	$index++;
-##
-##}
-##
-#
-#################################################################
+	$worksheet->write("A$index", $ssr_id);
+	$worksheet->write("B$index", $SSR_STATS{$ssr_id}{MOTIF});
+	$worksheet->write("C$index", $SSR_STATS{$ssr_id}{NO_REPEATS});
+	$worksheet->write("D$index", $SSR_STATS{$ssr_id}{START});
+	$worksheet->write("E$index", $SSR_STATS{$ssr_id}{END});
+	$worksheet->write("F$index", $SSR_STATS{$ssr_id}{FORWARD});
+	$worksheet->write("G$index", $SSR_STATS{$ssr_id}{REVERSE});
+	$worksheet->write("H$index", $SSR_STATS{$ssr_id}{LEFT_TM});
+	$worksheet->write("I$index", $SSR_STATS{$ssr_id}{RIGHT_TM});
+	$worksheet->write("J$index", $SSR_STATS{$ssr_id}{PRODUCT_SIZE});
 
-################################################################
-#sub _printUsage {
-#    print "Usage: $0.pl <arguments>";
-#    print qq(
-#    The list of arguments includes:
-#
-#    -f|--fasta_file <fasta_file>
-#        Required.  The file of the sequences to be searched. 
-#
-#    -m|--masked_file <masked_fasta_file>
-#        Required.  A soft-masked version of the fasta file (soft masked means low
-#        complexity sequences are in lower case bases.)
-#
-#    -p|--project "project name"
-#        Optional.  A project name for use in the Excel output.
-#
-#    );
-#    print "\n";
-#    return;
-#}
-#
-#
-#1;
+}
+
+###############################################################
+sub _printUsage {
+    print "Usage: $0.pl <arguments>";
+    print qq(
+    The list of arguments includes:
+
+    -f|--fasta_file <fasta_file>
+        Required.  The file of the sequences to be searched. 
+
+    -m|--masked_file <masked_fasta_file>
+        Required.  A soft-masked version of the fasta file (soft masked means low
+        complexity sequences are in lower case bases.)
+
+    -p|--project "project name"
+        Optional.  A project name for use in the Excel output.
+
+    );
+    print "\n";
+    return;
+}
+
+
+1;
