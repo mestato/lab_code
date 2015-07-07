@@ -36,52 +36,39 @@
 # Eight output files are produced:
 #
 # <input-file-name>.ssr.fasta
-# A fasta file with sequences with a single identified SSR.
-#
-# <input-file-name>.ssr_multi_seqs.fasta
-# A fasta with sequences with more than one identified SSR.
+# A fasta file with sequences with a SSR. (Compound SSRs are not considered)
 #
 # <input-file-name>.ssr_stats.txt
 # A text file of statistics about the SSRs discovered.
 #
 # <input-file-name>.ssr_report.txt
 # A tab-delimited file with each SSR.  The columns are sequence name,
-# motif, number of repeats, start position and end position.
+# motif, number of repeats, start position, end position, compound (T/F).
 #
 # <input-file-name>.ssr_report.xlsx
 # A excel file with SSR results and stats
 #
 # <input-file-name>.di_primer_report.txt
-# A tab-delimited file with sequences with a 2-bp SSR motif.  Columns are
-# sequence name, motif, start position, end position, left primer,
-# right primer, left primer Tm, right primer Tm, amplicon size, full 
-# sequence, masked sequence
-#
 # <input-file-name>.tri_primer_report.txt
-# A tab-delimited file with sequences with a 3-bp SSR motif.  Columns are
-# sequence name, motif, start position, end position, left primer,
-# right primer, left primer Tm, right primer Tm, amplicon size, full 
-# sequence, masked sequence
-#
 # <input-file-name>.tetra_primer_report.txt
-# A tab-delimited file with sequences with a 4-bp SSR motif.  Columns are
+# Tab-delimited files with sequences with a specified SSR motif length.  Columns are
 # sequence name, motif, start position, end position, left primer,
-# right primer, left primer Tm, right primer Tm, amplicon size, full
-# sequence, masked sequence
-#
+# right primer, left primer Tm, right primer Tm, amplicon size
 #
 # Details:
 # -------
 # By default the script finds:
-# 2 bp motifs repeated from 8 to 40 times,
-# 3 bp motifs repeated from 7 to 30 times,
-# 4 bp motifs repeated from 6 to 20 times,
-#
-# The script only reports SSRs that are not within 15 bases of either
-# end of the sequence, in order to allow for primer design.
+# 2 bp motifs repeated from 8 to 200 times,
+# 3 bp motifs repeated from 7 to 133 times,
+# 4 bp motifs repeated from 6 to 100 times,
 #
 # These parameters may be changed in the "GLOBAL PARAMETERS" part of
 # the script.
+#
+# Compound SSRs are defined as any SSRs that abut or are less than 15 bases
+# apart. These are essentially compound SSRs for the purposes of mapping
+# because it is unlikely that primers can be designed between the repeat 
+# segments.
 #
 
 
@@ -109,13 +96,9 @@ our $MIN_REPS_2bp = 8;
 our $MIN_REPS_3bp = 7;
 our $MIN_REPS_4bp = 6;
 
-our $MAX_REPS_2bp = 40;
-our $MAX_REPS_3bp = 30;
-our $MAX_REPS_4bp = 20;
-
-# SSRs at the beginning or end of a sequence prevents proper primers design.
-# This is how close we will allow an SSR to be to the ends of the sequence.
-our $LENGTH_FROM_END = 15;
+our $MAX_REPS_2bp = 200;
+our $MAX_REPS_3bp = 133;
+our $MAX_REPS_4bp = 100;
 
 #------------
 # PRIMER PARAMETERS
@@ -125,11 +108,11 @@ my $PRIMER3_CONFIG = "/lustre/projects/staton/software/primer3-2.3.6/src/primer3
 
 my $PRIMER_OPT_SIZE="20";  # default 20
 my $PRIMER_MIN_SIZE="18";  # default 18
-my $PRIMER_MAX_SIZE="25";  # default 27
+my $PRIMER_MAX_SIZE="27";  # default 27
 
 my $PRIMER_NUM_NS_ACCEPTED = "0";  # default 0
 
-my $PRIMER_PRODUCT_SIZE_RANGE = "100-200";
+my $PRIMER_PRODUCT_SIZE_RANGE = "100-450";
 
 my $PRIMER_OPT_TM = "60.0";
 my $PRIMER_MIN_TM = "55.0";
@@ -401,6 +384,7 @@ sub process_seq{
 
 
 
+###############################################################
 sub quality_check_ssr{
 	my $contig_name = shift;
 	my $ssr = shift;
@@ -413,7 +397,6 @@ sub quality_check_ssr{
 	## CHECKS to see if this is a good ssr
 	my $flag_same_base = 0;
 	my $flag_already_seen = 0;
-	my $flag_too_close_to_end = 0;
 
 	## Check #1
 	## ignore SSRs that are the same base repeated
@@ -436,14 +419,7 @@ sub quality_check_ssr{
 		$flag_already_seen = 1;
 	}
 
-	# Check #3
-	# Distance from end
-    my $seqLen = length $seq;
-    if($start_index >= $LENGTH_FROM_END && $end_index <= ($seqLen-$LENGTH_FROM_END)){
-		$flag_too_close_to_end = 1;
-	}
-
-	if($flag_same_base && $flag_already_seen && $flag_too_close_to_end){
+	if($flag_same_base && $flag_already_seen){
 		return 1;
 	}
 	else{
