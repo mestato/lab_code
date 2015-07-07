@@ -408,7 +408,7 @@ sub process_ssr{
 	##-------------------------------------
 	## generate a few more stats and variables
 	my $motif_len = length $motif;
-	my $num_of_repeats = ($end_index-$start_index)/$motif_len;
+	my $num_of_repeats = ($end_index-$start_index+1)/$motif_len;
     my $ssr_id = $contig_name."_ssr".$start_index;
 
 	##-------------------------------------
@@ -428,7 +428,7 @@ sub process_ssr{
 	$SSR_STATS{$ssr_id}{NO_REPEATS}   = $num_of_repeats;
 	$SSR_STATS{$ssr_id}{SEQ}          = $seq;
 	$SSR_STATS{$ssr_id}{SEQM}         = $seq_masked;
-	$SSR_STATS{$ssr_id}{COMPOUND}     = "FALSE"; #assume its not until proven otherwise
+	$SSR_STATS{$ssr_id}{COMPOUND}     = 0; #assume its not until proven otherwise
 
 
 }
@@ -443,13 +443,9 @@ sub collapse_compound_ssrs{
 			my $previous_end = -1;
 			my $previous_ssr_id = "";
 
-			my $current_start = -1;
-			my $current_end = -1;
-			my $current_ssr_id = "";
-
-			foreach $current_start (sort {$a <=> $b} @starts){
-				$current_ssr_id = $contig."_ssr".$current_start;
-				$current_end = $SSR_STATS{$current_ssr_id}{END};
+			foreach my $current_start (sort {$a <=> $b} @starts){
+				my $current_ssr_id = $contig."_ssr".$current_start;
+				my $current_end = $SSR_STATS{$current_ssr_id}{END};
 
 				if(too_close($previous_start, $previous_end, $current_start, $current_end)){
 						collapse($contig, $previous_ssr_id, $current_ssr_id);
@@ -477,6 +473,7 @@ sub too_close{
 	# we want to know if they overlap, abut or are less than 15 bases apart
 	elsif($previous_end >= $current_start ||
 		($current_start - $previous_end) < 15){
+		#print "$previous_start - $previous_end, $current_start - $current_end\n";
 		return 1;
 	}
 	else{
@@ -488,23 +485,35 @@ sub collapse{
 	my $contig = shift;
 	my $first_ssr_id = shift;
 	my $second_ssr_id = shift;
+	my $second_ssr_start = $SSR_STATS{$second_ssr_id}{START};
 
 	##fix SSR_STATS
 	$SSR_STATS{$first_ssr_id}{MOTIF}        = "COMPOUND";
 	$SSR_STATS{$first_ssr_id}{END}          = $SSR_STATS{$second_ssr_id}{END};
 	$SSR_STATS{$first_ssr_id}{MOTIF_LENGTH} = "COMPOUND";
 	$SSR_STATS{$first_ssr_id}{NO_REPEATS}   = "COMPOUND";
-	$SSR_STATS{$first_ssr_id}{COMPOUND}     = "TRUE"; #assume its not until proven otherwise
+	$SSR_STATS{$first_ssr_id}{COMPOUND}     = 1; #assume its not until proven otherwise
 
+	delete $SSR_STATS{$second_ssr_id}{MOTIF};
+	delete $SSR_STATS{$second_ssr_id}{START};
+	delete $SSR_STATS{$second_ssr_id}{END};
+	delete $SSR_STATS{$second_ssr_id}{MOTIF_LENGTH};
+	delete $SSR_STATS{$second_ssr_id}{NO_REPEATS};
+	delete $SSR_STATS{$second_ssr_id}{SEQ};
+	delete $SSR_STATS{$second_ssr_id}{SEQM};
+	delete $SSR_STATS{$second_ssr_id}{COMPOUND};
+	undef %{$SSR_STATS{$second_ssr_id}};
 	delete $SSR_STATS{$second_ssr_id};
-	print "deleting $second_ssr_id, part of compound ssr\n";
+
+	print "\tdeleting $second_ssr_id, part of compound ssr\n";
+
+	if(exists $SSR_STATS{$second_ssr_id}){ print "\t still exists\n";}
 
 	##fix CONTIG_SSR_STARTS
 	# get rid of the start index for the second ssr (it is now part of the
 	# first ssr)
 
 	my $index = 0;
-	my $second_ssr_start = $SSR_STATS{$second_ssr_id}{START};
 	$index++ until $CONTIG_SSR_STARTS{$contig}[$index] == $second_ssr_start;
 	splice(@{$CONTIG_SSR_STARTS{$contig}}, $index, 1);
 
@@ -522,13 +531,13 @@ sub flag_multiSSRs{
 			## this contig has only one ssr
 			my $start_index = $starts[0];
 			my $ssr_id = $contig."_ssr".$start_index;
-			$SSR_STATS{$ssr_id}{MULTI} = "FALSE";
+			$SSR_STATS{$ssr_id}{MULTI} = 0;
 		}
 		else{
 			## this contig has multiple ssrs
 			foreach my $start_index (@starts){
 				my $ssr_id = $contig."_ssr".$start_index;
-				$SSR_STATS{$ssr_id}{MULTI} = "TRUE";
+				$SSR_STATS{$ssr_id}{MULTI} = 1;
 			}
 		}
 	}
@@ -544,7 +553,7 @@ sub addToPrimer3InputFile{
 
 	foreach my $ssr_id (keys %SSR_STATS){
 		#skip compound SSRS
-		if($SSR_STATS{$ssr_id}{COMPOUND} == 'FALSE'){
+		if($SSR_STATS{$ssr_id}{COMPOUND} == 0){
 			my $ssrStart   = $SSR_STATS{$ssr_id}{START};
 			my $ssrEnd     = $SSR_STATS{$ssr_id}{END};
 			my $seq        = $SSR_STATS{$ssr_id}{SEQM};
@@ -634,7 +643,7 @@ sub parseP3_output{
 
 		if(length $forward > 1){
 			if($forward eq $reverse){
-				print "FLAG: problem with $ssr_id\n";
+				print "\tFLAG: identical primer problem with $ssr_id\n";
 				$identical_primer_cnt++;
 			}
 			else{
@@ -648,36 +657,122 @@ sub parseP3_output{
 		}
 	}
 
-    print "total identical primers: $identical_primer_cnt\n";
+    print "\ttotal identical primers: $identical_primer_cnt\n";
 }
 
+###################################################
 sub create_flat_files{
 	my $ssr_out = shift;
 	my $di_primer_out = shift;
 	my $tri_primer_out = shift;
 	my $tetra_primer_out = shift;
 
+	open OUTS, ">$ssr_out";
+	open OUT2, ">$di_primer_out";
+	open OUT3, ">$tri_primer_out";
+	open OUT4, ">$tetra_primer_out";
+
+	my $di_fh = *OUT2;
+	my $tri_fh = *OUT3;
+	my $tetra_fh = *OUT4;
+
+	##printer headers
+	print OUTS join("\t", "SSR ID",
+				"motif", "start position", "end position");
+	print OUTS "\n";
+
+	print OUT2 join("\t", "SSR ID",
+				"motif", "number of repeats", "start position", 
+				"end position", "forward primer", "reverse primer",
+				"forward Tm", "reverse Tm","product size" );
+	print OUT2  "\n";
+
+	print OUT3 join("\t", "SSR ID",
+				"motif", "number of repeats", "start position", 
+				"end position", "forward primer", "reverse primer",
+				"forward Tm", "reverse Tm","product size" );
+	print OUT3  "\n";
+
+	print OUT4 join("\t", "SSR ID",
+				"motif", "number of repeats", "start position", 
+				"end position", "forward primer", "reverse primer",
+				"forward Tm", "reverse Tm","product size" );
+	print OUT4  "\n";
+
+	foreach my $ssr_id (keys %SSR_STATS){
+		## all ssrs including compound go in main ssr file
+		print OUTS join("\t",
+			$ssr_id,
+			$SSR_STATS{$ssr_id}{MOTIF},
+			$SSR_STATS{$ssr_id}{START},
+				$SSR_STATS{$ssr_id}{END},
+		);
+		print OUTS "\n";
+
+		# for primer flat files, only print SSRs with 
+		# that have primers
+		if($SSR_STATS{$ssr_id}{COMPOUND} == 0 &&
+			$SSR_STATS{$ssr_id}{FORWARD} =~ /\S/
+		){
+			if(length $SSR_STATS{$ssr_id}{MOTIF_LEN} == 2){
+				_print_primer_flat_file_line($di_fh, $ssr_id);
+			}
+			elsif(length $SSR_STATS{$ssr_id}{MOTIF_LEN} == 3){
+				_print_primer_flat_file_line($tri_fh, $ssr_id);
+			}
+			elsif(length $SSR_STATS{$ssr_id}{MOTIF_LEN} == 4){
+				_print_primer_flat_file_line($tetra_fh, $ssr_id);
+			}
+		}
+	}
+	close OUTS;
+	close OUT2;
+	close OUT3;
+	close OUT4;
+
+}
+###################################################
+sub _print_primer_flat_file_line{
+	my $fh = shift;
+	my $ssr_id = shift;
+
+	print $fh join("\t", $ssr_id,
+		$SSR_STATS{$ssr_id}{MOTIF},
+		$SSR_STATS{$ssr_id}{NO_REPEATS},
+		$SSR_STATS{$ssr_id}{START},
+		$SSR_STATS{$ssr_id}{END},
+		$SSR_STATS{$ssr_id}{FORWARD},
+		$SSR_STATS{$ssr_id}{REVERSE},
+		$SSR_STATS{$ssr_id}{LEFT_TM},
+		$SSR_STATS{$ssr_id}{RIGHT_TM},
+		$SSR_STATS{$ssr_id}{PRODUCT_SIZE},
+	);
+	print $fh "\n";
+
 }
 
+###################################################
 sub create_fasta_file{
 	my $fasta_out = shift;
 	open FASTA, ">$fasta_out";
 
 	foreach my $contig (keys %CONTIG_SSR_STARTS){
 		my @starts = @{ $CONTIG_SSR_STARTS{$contig}};
+		my $seq = "";
 		print FASTA ">$contig (";
-		foreach my $start_index (@starts){
+		foreach my $start_index (sort {$a <=> $b} @starts){
 			my $ssr_id = $contig."_ssr".$start_index;
+
+			#if($SSR_STATS{$ssr_id}{START} >= 0){
+			$seq = $SSR_STATS{$ssr_id}{SEQ};
 			print FASTA "$SSR_STATS{$ssr_id}{START}-$SSR_STATS{$ssr_id}{END} ";
-			if($SSR_STATS{$ssr_id}{COMPOUND} == 'TRUE'){ 
+			if($SSR_STATS{$ssr_id}{COMPOUND} == 1){ 
 				print FASTA "*Compound ";
 			}
 		}
 		#get the first ssr index just so we can get the sequence
-		my $start_index = $starts[0];
-		my $ssr_id = $contig."_ssr".$start_index;
-		print FASTA ")\n ";
-		print FASTA "$SSR_STATS{$ssr_id}{SEQ}\n";
+		print FASTA ")\n";
+		print FASTA "$seq\n";
 
 	}
 	close FASTA;
@@ -686,64 +781,6 @@ sub create_fasta_file{
 ################################################################
 
 
-################################################################
-#sub create_primer_flat_files{
-#	my $di_primer_out = shift;
-#	my $tri_primer_out = shift;
-#	my $tetra_primer_out = shift;
-#
-#
-#	_print_primer_flat_files("2", $di_primer_out);
-#	_print_primer_flat_files("3", $tri_primer_out);
-#	_print_primer_flat_files("4", $tetra_primer_out);
-#
-#
-##                        print $fastaout_fh ">$contig $motif.$ssrStart-$ssrEnd\n$seq\n";
-##                        #print "\t$forward\n";
-##                        $SSR_w_PRIMER_COUNT++;
-##                        if(length $motif == 2){
-##                            print $di_fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
-##                            print $di_fh "\n";
-##                            my $tmp = $MOTIFLEN_w_PRIMERS{2};
-##                            $tmp++;
-##                            $MOTIFLEN_w_PRIMERS{2} = $tmp;
-##                            my $cnt = ($ssrEnd-$ssrStart+1)/2;
-#
-#}
-################################################################
-#sub _print_primer_flat_files{
-#	my $motif_len = shift;
-#	my $file_name = shift;
-#
-#    open (OUT, ">$file_name");
-#	foreach my $ssr_id (keys %SSR_STATS){
-#
-#		# for flat files, only print SSRs with the right 
-#		# motif length and 
-#		# that are not multis and
-#		# that have primers
-#		if(length $SSR_STATS{$ssr_id}{MOTIF} == $motif_len &&
-#			$SSR_STATS{$ssr_id}{MULTI} == 'FALSE' &&
-#			$SSR_STATS{$ssr_id}{FORWARD} =~ /\S/
-#		){
-#
-#			print OUT join("\t",
-#				$ssr_id,
-#				$SSR_STATS{$ssr_id}{MOTIF},
-#				$SSR_STATS{$ssr_id}{START},
-#				$SSR_STATS{$ssr_id}{END},
-#				$SSR_STATS{$ssr_id}{FORWARD},
-#				$SSR_STATS{$ssr_id}{REVERSE},
-#				$SSR_STATS{$ssr_id}{LEFT_TM},
-#				$SSR_STATS{$ssr_id}{RIGHT_TM},
-#				$SSR_STATS{$ssr_id}{PRODUCT_SIZE},
-#				#$SSR_STATS{$ssr_id}{SEQ},
-#				#$SSR_STATS{$ssr_id}{SEQM}
-#			);
-#		}
-#	}
-#	close OUT;
-#}
 #
 ################################################################
 #sub initiate_workbooks{
