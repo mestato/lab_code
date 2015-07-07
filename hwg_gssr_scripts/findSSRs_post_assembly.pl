@@ -33,8 +33,6 @@
 #
 # Output:
 # ------
-# Eight output files are produced:
-#
 # <input-file-name>.ssr.fasta
 # A fasta file with sequences with a SSR. (Compound SSRs are not considered)
 #
@@ -199,8 +197,7 @@ sub main{
 
     my $ssr_out;  # the tab-delimited output file
     my $ssr_xlsx;
-    my $fasta_out_single;
-    my $fasta_out_multi;
+    my $fasta_out;
     my $stats_out;
 
     my $di_primer_out;
@@ -223,47 +220,45 @@ sub main{
     $p3_input  = "$fasta_file.p3in.txt";
     $p3_output = "$fasta_file.p3out.txt";
 
-    $ssr_out        = "$fasta_file.ssr_report.txt";
-    $ssr_xlsx       = "$fasta_file.ssr_report.xlsx";
-
-    $fasta_out_single = "$fasta_file.seqs_one_ssr.fasta";
-    $fasta_out_multi  = "$fasta_file.seqs_multi_ssrs.fasta";
-
-    $stats_out      = "$fasta_file.ssr_stats.txt";
-
-    $di_primer_out = "$fasta_file.di_primer_report.txt";
-    $tri_primer_out = "$fasta_file.tri_primer_report.txt";
+    $ssr_out          = "$fasta_file.ssr_report.txt";
+    $ssr_xlsx         = "$fasta_file.ssr_report.xlsx";
+    $fasta_out        = "$fasta_file.ssr.fasta";
+    $stats_out        = "$fasta_file.ssr_stats.txt";
+    $di_primer_out    = "$fasta_file.di_primer_report.txt";
+    $tri_primer_out   = "$fasta_file.tri_primer_report.txt";
     $tetra_primer_out = "$fasta_file.tetra_primer_report.txt";
 
 	##---------------------------------------------------------------
     print "finding SSRs...\n";
     open(PI3, ">$p3_input") or die $!;
     my $p3_input_fh = *PI3;
-    process_file($fasta_file, $masked_file, $ssr_out, $p3_input_fh);
+    process_file($fasta_file, $masked_file);
     close PI3;
 
-    print "running primer3...\n";
-    print "$PRIMER3 < $p3_input > $p3_output\n";
-    my $status = system("$PRIMER3 < $p3_input > $p3_output");
-
-    print "parsing primer3...";
-    parseP3_output($p3_output);
-    print "done.\n";
-
-	##---------------------------------------------------------------
-	## Producing output - Fasta files and flat files
-
+	collapse_compound_SSRs();
 	# this subroutine accomplishes two things
 	# 1. adds a MULTI flag to the data hash indicating if the
 	# ssr is the only one in the sequence or one of many
 	# 2. prints a fasta file with sequences with a single ssr
 	# and another with sequences with multiple ssrs
     print "identifying sequences with >1 SSR...";
-    flag_multiSSRs($fasta_out_single, $fasta_out_multi);
+    flag_multiSSRs($fasta_out);
     print "done.\n";
 
-    print "printing output files...";
-	create_primer_flat_files ($di_primer_out, $tri_primer_out, $tetra_primer_out);
+
+#    print "running primer3...\n";
+#    print "$PRIMER3 < $p3_input > $p3_output\n";
+#    my $status = system("$PRIMER3 < $p3_input > $p3_output");
+#
+#    print "parsing primer3...";
+#    parseP3_output($p3_output);
+#    print "done.\n";
+
+	##---------------------------------------------------------------
+	## Producing output - Fasta files and flat files
+
+	#print "printing output files...";
+	#create_primer_flat_files ($di_primer_out, $tri_primer_out, $tetra_primer_out);
 
 
 	##---------------------------------------------------------------
@@ -274,14 +269,14 @@ sub main{
 	##---------------------------------------------------------------
 	## Producing output - Excel
 
-    print "creating Excel workbook...";
-    my ($workbook,$formats) = createExcelWorkbook($ssr_xlsx);
-    print "done.\n";
-
-    print "generate output...";
-	# generate filehandles
-	my ($di_worksheet, $tri_worksheet, $tetra_worksheet) = initiate_workbooks($workbook, $formats, $project);
-    print "done.\n";
+#    print "creating Excel workbook...";
+#    my ($workbook,$formats) = createExcelWorkbook($ssr_xlsx);
+#    print "done.\n";
+#
+#    print "generate output...";
+#	# generate filehandles
+#	my ($di_worksheet, $tri_worksheet, $tetra_worksheet) = initiate_workbooks($workbook, $formats, $project);
+#    print "done.\n";
 
 	#print "stats...\n";
 	#my $worksheet_stats = printStats($stats_out, $workbook, $formats, $project);
@@ -297,8 +292,6 @@ sub main{
 sub process_file{
     my $fasta_file  = $_[0]; # file name
     my $masked_file = $_[1]; # file name
-    my $ssr_out     = $_[2]; # file name
-    my $p3_input_fh = $_[3]; # file name
 
     my $seqio;
     my $seqioM;
@@ -311,9 +304,6 @@ sub process_file{
 
     my $seqstr;
     my $seqstrM;
-
-    open (OUT, ">".$ssr_out) || die "ERROR cannot open $_\n";
-    my $out_fh = *OUT;
 
     $seqio = Bio::SeqIO->new('-format' => 'fasta', -file => $fasta_file);
     $seqioM = Bio::SeqIO->new('-format' => 'fasta', -file => $masked_file);
@@ -334,7 +324,7 @@ sub process_file{
             die "masked sequence $seqnameM not in same order as regular sequence $seqname\n";
         }
 
-        process_seq($seqname, $seqstr, $seqstrM, $out_fh, $p3_input_fh);
+        process_seq($seqname, $seqstr, $seqstrM);
     }
 
 }
@@ -345,8 +335,6 @@ sub process_seq{
     my $contig_name = shift;
     my $seq         = shift;
     my $seq_masked  = shift;
-    my $out_fh      = shift;
-    my $p3_input_fh = shift;
 
 
     my %seen;     # used to keep track of start positions we've already seen
@@ -374,7 +362,7 @@ sub process_seq{
 			my $end_index = $+[0];
 
 			if(quality_check_ssr($contig_name, $ssr, $motif, $start_index, $end_index, $seq)){
-				process_ssr($contig_name, $ssr, $motif, $start_index, $end_index, $seq, $seq_masked, $out_fh, $p3_input_fh);
+				process_ssr($contig_name, $ssr, $motif, $start_index, $end_index, $seq, $seq_masked);
 
 			}
 
@@ -430,6 +418,7 @@ sub quality_check_ssr{
 
 
 
+######################################################
 sub process_ssr{
 	my $contig_name = shift;
 	my $ssr = shift;
@@ -438,8 +427,6 @@ sub process_ssr{
  	my $end_index = shift;
 	my $seq = shift;
 	my $seq_masked = shift;
-    my $out_fh      = shift;
-    my $p3_input_fh = shift;
 
 	##-------------------------------------
 	## generate a few more stats and variables
@@ -481,602 +468,597 @@ sub process_ssr{
 		}
 	}
 
-	##-------------------------------------
-	# print to text file of all repeats found and primer 3 input file
-
-	printf $out_fh ("$contig_name\t$motif\t$num_of_repeats\t$start_index\t$end_index\n");
-	_addToPrimer3InputFile($p3_input_fh, $contig_name, $start_index, $end_index, $seq_masked);
-
-
 }
 
-###############################################################
-sub _addToPrimer3InputFile{
-    my $p3_input_fh = shift;
-    my $contig_name = shift;
-    my $ssrStart    = shift;
-    my $ssrEnd      = shift;
-    my $seq         = shift;
-
-	# change from soft mask to hard mask
-	$seq =~ s/[actg]/N/g;
-
-    my $len         = $ssrEnd-$ssrStart;
-
-    printf $p3_input_fh ("SEQUENCE_ID=$contig_name\_ssr$ssrStart\n");
-    printf $p3_input_fh ("SEQUENCE_TEMPLATE=$seq\n");
-    printf $p3_input_fh ("SEQUENCE_TARGET=$ssrStart,$len\n");
-    printf $p3_input_fh ("PRIMER_TASK=generic\n");
-    printf $p3_input_fh ("PRIMER_PICK_LEFT_PRIMER=1\n");
-    printf $p3_input_fh ("PRIMER_PICK_INTERNAL_OLIGO=0\n");
-    printf $p3_input_fh ("PRIMER_PICK_RIGHT_PRIMER=1\n");
-    printf $p3_input_fh ("PRIMER_OPT_SIZE=$PRIMER_OPT_SIZE\n");
-    printf $p3_input_fh ("PRIMER_MIN_SIZE=$PRIMER_MIN_SIZE\n");
-    printf $p3_input_fh ("PRIMER_MAX_SIZE=$PRIMER_MAX_SIZE\n");
-    printf $p3_input_fh ("PRIMER_NUM_NS_ACCEPTED=$PRIMER_NUM_NS_ACCEPTED\n");
-    printf $p3_input_fh ("PRIMER_PRODUCT_SIZE_RANGE=$PRIMER_PRODUCT_SIZE_RANGE\n");
-    printf $p3_input_fh ("PRIMER_OPT_TM=$PRIMER_OPT_TM\n");
-    printf $p3_input_fh ("PRIMER_MIN_TM=$PRIMER_MIN_TM\n");
-    printf $p3_input_fh ("PRIMER_MAX_TM=$PRIMER_MAX_TM\n");
-    printf $p3_input_fh ("PRIMER_MIN_GC=$PRIMER_MIN_GC\n");
-    printf $p3_input_fh ("PRIMER_MAX_GC=$PRIMER_MAX_GC\n");
-    printf $p3_input_fh ("PRIMER_MAX_POLY_X=$PRIMER_MAX_POLY_X\n");
-    printf $p3_input_fh ("PRIMER_GC_CLAMP=$PRIMER_GC_CLAMP\n");
-    printf $p3_input_fh ("PRIMER_THERMODYNAMIC_PARAMETERS_PATH=$PRIMER3_CONFIG\n");
-    printf $p3_input_fh ("=\n");
-
-}
-
-###############################################################
-sub parseP3_output{
-    my $p3_output = $_[0]; # file name
-
-	# We are going to keep track of a weird phenomenon only seen in one
-	# project - the generation of identical forward and reverse primers. The
-	# sequences from this project were overlapping paired ends that were joined.
-	# Apparently something went wrong and weird sequences were obtained, all of
-	# which yield the identical primers.
-	# This is not reported in the final stats, just as part of the standard output.
-    my $identical_primer_cnt = 0;
-
-    # The primers output file separates information about different sequences
-    # with an equal sign on a single line. So, we want to set the file line
-    # delimiter (for looping on the input file below) to a single equal sign
-    # followed by a line feed.  This way were guranteed to have all the primer
-    # information together per line
-    local $/ = "=\n";
-
-    open (P3O, $p3_output) || die "could not open $_\n";
-
-    # Read in all of the lines of the input file
-	my $primer_record;
-    while ($primer_record = <P3O>) {
-        my $start = "";
-        my $seq_id = "";
-        my $ssr_id = "";
-        my $forward = "";
-        my $reverse = "";
-        my $product_size = "";
-        my $left_tm = "";
-        my $right_tm = "";
-
-		if ($primer_record =~ /SEQUENCE_ID=(\S+)/) {
-		    $ssr_id = $1;
-		}
-		# get the primary primers only
-		if ($primer_record =~ /PRIMER_LEFT_0_SEQUENCE=(\S+)/) {
-		    $forward = $1;
-		}
-		if ($primer_record =~ /PRIMER_RIGHT_0_SEQUENCE=(\S+)/) {
-		    $reverse = $1;
-		}
-		if ($primer_record =~ /PRIMER_LEFT_0_TM=(\S+)/) {
-		    $left_tm = $1;
-		}
-		if ($primer_record =~ /PRIMER_RIGHT_0_TM=(\S+)/) {
-		    $right_tm = $1;
-		}
-		if ($primer_record =~ /PRIMER_PAIR_0_PRODUCT_SIZE=(\S+)/) {
-		    $product_size = $1;
-		}
-
-		if(length $forward > 1){
-			if($forward eq $reverse){
-				print "FLAG: problem with $ssr_id\n";
-				$identical_primer_cnt++;
-			}
-			else{
-				$SSR_STATS{$ssr_id}{FORWARD} = $forward;
-				$SSR_STATS{$ssr_id}{REVERSE} = $reverse;
-				$SSR_STATS{$ssr_id}{PRODUCT_SIZE} = $product_size;
-				$SSR_STATS{$ssr_id}{LEFT_TM} = $left_tm;
-				$SSR_STATS{$ssr_id}{RIGHT_TM} = $right_tm;
-
-			}
-		}
-	}
-
-    print "total identical primers: $identical_primer_cnt\n";
-}
-
-###############################################################
-sub flag_multiSSRs{
-	my $fasta_out_single = shift;
-	my $fasta_out_multi = shift;
-
-	# this subroutine accomplishes two things
-	# 1. adds a MULTI flag to the data hash indicating if the
-	# ssr is the only one in the sequence or one of many
-	# 2. prints a fasta file with sequences with a single ssr
-	# and another with sequences with multiple ssrs
-
-	open FASTASINGLE, ">$fasta_out_single";
-	open FASTAMULTI, ">$fasta_out_multi";
-
-	foreach my $contig (keys %CONTIG_SSR_STARTS){
-		my @starts = @{ $CONTIG_SSR_STARTS{$contig}};
-		if(@starts == 1){
-			## this contig has only one ssr
-			my $start_index = $starts[0];
-			my $ssr_id = $contig."_ssr".$start_index;
-			$SSR_STATS{$ssr_id}{MULTI} = "False";
-			#print "\t$ssr_id:FALSE\n";
-			print FASTASINGLE ">$contig ".
-									"($SSR_STATS{$ssr_id}{START}-$SSR_STATS{$ssr_id}{END})\n".
-									"$SSR_STATS{$ssr_id}{SEQ}\n";
-		}
-		else{
-			## this contig has multiple ssrs
-			print FASTAMULTI ">$contig (";
-			foreach my $start_index (@starts){
-				my $ssr_id = $contig."_ssr".$start_index;
-				$SSR_STATS{$ssr_id}{MULTI} = "True";
-				#print "\t$ssr_id:TRUE\n";
-				print FASTAMULTI "$SSR_STATS{$ssr_id}{START}-$SSR_STATS{$ssr_id}{END} ";
-			}
-			#get the first ssr index just so we can get the sequence
-			my $start_index = $starts[0];
-			my $ssr_id = $contig."_ssr".$start_index;
-			print FASTAMULTI ")\n ";
-			print FASTAMULTI "$SSR_STATS{$ssr_id}{SEQ}\n";
-		}
-	}
-	close FASTAOUT;
-	close FASTAMULTI;
-
-}
-
-###############################################################
-sub create_primer_flat_files{
-	my $di_primer_out = shift;
-	my $tri_primer_out = shift;
-	my $tetra_primer_out = shift;
-
-
-	_print_primer_flat_files("2", $di_primer_out);
-	_print_primer_flat_files("3", $tri_primer_out);
-	_print_primer_flat_files("4", $tetra_primer_out);
-
-
-#                        print $fastaout_fh ">$contig $motif.$ssrStart-$ssrEnd\n$seq\n";
-#                        #print "\t$forward\n";
-#                        $SSR_w_PRIMER_COUNT++;
-#                        if(length $motif == 2){
-#                            print $di_fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
-#                            print $di_fh "\n";
-#                            my $tmp = $MOTIFLEN_w_PRIMERS{2};
-#                            $tmp++;
-#                            $MOTIFLEN_w_PRIMERS{2} = $tmp;
-#                            my $cnt = ($ssrEnd-$ssrStart+1)/2;
-
-}
-###############################################################
-sub _print_primer_flat_files{
-	my $motif_len = shift;
-	my $file_name = shift;
-
-    open (OUT, ">$file_name");
-	foreach my $ssr_id (keys %SSR_STATS){
-
-		# for flat files, only print SSRs with the right 
-		# motif length and 
-		# that are not multis and
-		# that have primers
-		if(length $SSR_STATS{$ssr_id}{MOTIF} == $motif_len &&
-			$SSR_STATS{$ssr_id}{MULTI} == 'FALSE' &&
-			$SSR_STATS{$ssr_id}{FORWARD} =~ /\S/
-		){
-
-			print OUT join("\t",
-				$ssr_id,
-				$SSR_STATS{$ssr_id}{MOTIF},
-				$SSR_STATS{$ssr_id}{START},
-				$SSR_STATS{$ssr_id}{END},
-				$SSR_STATS{$ssr_id}{FORWARD},
-				$SSR_STATS{$ssr_id}{REVERSE},
-				$SSR_STATS{$ssr_id}{LEFT_TM},
-				$SSR_STATS{$ssr_id}{RIGHT_TM},
-				$SSR_STATS{$ssr_id}{PRODUCT_SIZE},
-				#$SSR_STATS{$ssr_id}{SEQ},
-				#$SSR_STATS{$ssr_id}{SEQM}
-			);
-		}
-	}
-	close OUT;
-}
-
-###############################################################
-sub initiate_workbooks{
-    my $workbook = $_[0]; # file name
-    my $formats  = $_[1]; # file name
-    my $project  = $_[2]; # file name
-
-	my $di_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Dinucleotide");
-	my $tri_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Trinucleotide");
-	my $tetra_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Tetranucleotide");
-
-	return($di_worksheet, $tri_worksheet, $tetra_worksheet);
-}
-###############################################################
-sub _initiate_worksheet{
-    my $workbook = $_[0];
-    my $formats  = $_[1];
-    my $project  = $_[2];
-	my $name     = $_[3];
-
-    my $worksheet = $workbook->add_worksheet($name);
-    $worksheet->set_column('A:A', 60, $formats->{text});
-    $worksheet->set_column('F:G', 30, $formats->{text});
-    #$worksheet->set_column('J:J', 100, $formats->{text});
-    $worksheet->write('A1', "$name Repeats for $project", $formats->{header});
-    $worksheet->write('A2', 'Sequence Name', $formats->{header});
-	$worksheet->write('B2', 'Motif', $formats->{header});
-    $worksheet->write('C2', '# Repeats', $formats->{header});
-    $worksheet->write('D2', 'Start', $formats->{header});
-    $worksheet->write('E2', 'End', $formats->{header});
-    $worksheet->write('F2', 'Forward Primer', $formats->{header});
-    $worksheet->write('G2', 'Reverse Primer', $formats->{header});
-    $worksheet->write('H2', 'Forward Tm', $formats->{header});
-    $worksheet->write('I2', 'Reverse Tm', $formats->{header});
-    $worksheet->write('J2', 'Fragment Size', $formats->{header});
-    #$worksheet->write('J2', 'Sequence', $formats->{header});
-
-	return $worksheet;
-}
-
-sub _print_worksheet{
-    my $worksheet = $_[0];
-    my $formats   = $_[1];
-	my $name      = $_[2];
-
-
-}
+#######################################################
+#sub collapse_compound_ssrs{
+#}
 #
-#                            $di_worksheet->write("A$di_index", $contig, $formats->{text});
-#                                $di_worksheet->write("B$di_index", $motif, $formats->{text});
-#                                $di_worksheet->write("C$di_index", $cnt, $formats->{text});
-#                                $di_worksheet->write("D$di_index", $ssrStart, $formats->{text});
-#                                $di_worksheet->write("E$di_index", $ssrEnd, $formats->{text});
-#                                $di_worksheet->write("F$di_index", $forward, $formats->{text});
-#                                $di_worksheet->write("G$di_index", $reverse, $formats->{text});
-#                                $di_worksheet->write("H$di_index", $left_tm, $formats->{text});
-#                                $di_worksheet->write("I$di_index", $right_tm, $formats->{text});
-#                                $di_worksheet->write("J$di_index", $product_size, $formats->{text});
-#                                #$di_worksheet->write("J$di_index", $seq, $formats->{text});
-#                            $di_index++;
 #
-#                            # Increment motif count
-#                            foreach my $group (keys %MOTIFS) {
-#                                my $motifUC = uc($motif);
-#                                if($group =~ /\|$motifUC\|/){
-#                                    # If this group contains this motif
-#                                    my $tmp = $MOTIFS{$group}++;
-#                                    $tmp++;
-#                                    $MOTIFS{$group} = $tmp;
-#                                }
-#                            }# end foreach $group
-#                        }
-#                        elsif(length $motif == 3){
-#                            print $tri_fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
-#                            print $tri_fh "\n";
-#                            my $tmp = $MOTIFLEN_w_PRIMERS{3};
-#                            $tmp++;
-#                            $MOTIFLEN_w_PRIMERS{3} = $tmp;
+################################################################
+#sub flag_multiSSRs{
+#	my $fasta_out = shift;
 #
-#                            my $cnt = ($ssrEnd-$ssrStart+1)/3;
-#                            $tri_worksheet->write("A$tri_index", $contig, $formats->{text});
-#                                $tri_worksheet->write("B$tri_index", $motif, $formats->{text});
-#                                $tri_worksheet->write("C$tri_index", $cnt, $formats->{text});
-#                                $tri_worksheet->write("D$tri_index", $ssrStart, $formats->{text});
-#                                $tri_worksheet->write("E$tri_index", $ssrEnd, $formats->{text});
-#                                $tri_worksheet->write("F$tri_index", $forward, $formats->{text});
-#                                $tri_worksheet->write("G$tri_index", $reverse, $formats->{text});
-#                                $tri_worksheet->write("H$tri_index", $left_tm, $formats->{text});
-#                                $tri_worksheet->write("I$tri_index", $right_tm, $formats->{text});
-#                                $tri_worksheet->write("J$tri_index", $product_size, $formats->{text});
-#                                #$tri_worksheet->write("J$tri_index", $seq, $formats->{text});
-#                            $tri_index++;
-#                        }
-#                        elsif(length $motif == 4){
-#							_printLineToWorksheet();
-#                        }
-#                    }
-#                    else{
-#                        print $fastamulti_fh ">$contig\n$seq\n";
-#                    }
-#                }
+#	# this subroutine accomplishes two things
+#	# 1. adds a MULTI flag to the data hash indicating if the
+#	# ssr is the only one in the sequence or one of many
+#	# 2. prints a fasta file with sequences with a single ssr
+#	# and another with sequences with multiple ssrs
+#
+#	open FASTA, ">$fasta_out";
+#
+#	foreach my $contig (keys %CONTIG_SSR_STARTS){
+#		my @starts = @{ $CONTIG_SSR_STARTS{$contig}};
+#		if(@starts == 1){
+#			## this contig has only one ssr
+#			my $start_index = $starts[0];
+#			my $ssr_id = $contig."_ssr".$start_index;
+#			$SSR_STATS{$ssr_id}{MULTI} = "False";
+#			#print "\t$ssr_id:FALSE\n";
+#			print FASTA ">$contig ".
+#									"($SSR_STATS{$ssr_id}{START}-$SSR_STATS{$ssr_id}{END})\n".
+#									"$SSR_STATS{$ssr_id}{SEQ}\n";
+#		}
+#		else{
+#			## this contig has multiple ssrs
+#			print FASTA ">$contig (";
+#			foreach my $start_index (@starts){
+#				my $ssr_id = $contig."_ssr".$start_index;
+#				$SSR_STATS{$ssr_id}{MULTI} = "True";
+#				#print "\t$ssr_id:TRUE\n";
+#				print FASTA "$SSR_STATS{$ssr_id}{START}-$SSR_STATS{$ssr_id}{END} ";
+#			}
+#			#get the first ssr index just so we can get the sequence
+#			my $start_index = $starts[0];
+#			my $ssr_id = $contig."_ssr".$start_index;
+#			print FASTA ")\n ";
+#			print FASTA "$SSR_STATS{$ssr_id}{SEQ}\n";
+#		}
+#	}
+#	close FASTA;
+#
+#}
+################################################################
+##sub _addToPrimer3InputFile{
+##    my $p3_input_fh = shift;
+##    my $contig_name = shift;
+##    my $ssrStart    = shift;
+##    my $ssrEnd      = shift;
+##    my $seq         = shift;
+##
+##	# change from soft mask to hard mask
+##	$seq =~ s/[actg]/N/g;
+##
+##    my $len         = $ssrEnd-$ssrStart;
+##
+##    printf $p3_input_fh ("SEQUENCE_ID=$contig_name\_ssr$ssrStart\n");
+##    printf $p3_input_fh ("SEQUENCE_TEMPLATE=$seq\n");
+##    printf $p3_input_fh ("SEQUENCE_TARGET=$ssrStart,$len\n");
+##    printf $p3_input_fh ("PRIMER_TASK=generic\n");
+##    printf $p3_input_fh ("PRIMER_PICK_LEFT_PRIMER=1\n");
+##    printf $p3_input_fh ("PRIMER_PICK_INTERNAL_OLIGO=0\n");
+##    printf $p3_input_fh ("PRIMER_PICK_RIGHT_PRIMER=1\n");
+##    printf $p3_input_fh ("PRIMER_OPT_SIZE=$PRIMER_OPT_SIZE\n");
+##    printf $p3_input_fh ("PRIMER_MIN_SIZE=$PRIMER_MIN_SIZE\n");
+##    printf $p3_input_fh ("PRIMER_MAX_SIZE=$PRIMER_MAX_SIZE\n");
+##    printf $p3_input_fh ("PRIMER_NUM_NS_ACCEPTED=$PRIMER_NUM_NS_ACCEPTED\n");
+##    printf $p3_input_fh ("PRIMER_PRODUCT_SIZE_RANGE=$PRIMER_PRODUCT_SIZE_RANGE\n");
+##    printf $p3_input_fh ("PRIMER_OPT_TM=$PRIMER_OPT_TM\n");
+##    printf $p3_input_fh ("PRIMER_MIN_TM=$PRIMER_MIN_TM\n");
+##    printf $p3_input_fh ("PRIMER_MAX_TM=$PRIMER_MAX_TM\n");
+##    printf $p3_input_fh ("PRIMER_MIN_GC=$PRIMER_MIN_GC\n");
+##    printf $p3_input_fh ("PRIMER_MAX_GC=$PRIMER_MAX_GC\n");
+##    printf $p3_input_fh ("PRIMER_MAX_POLY_X=$PRIMER_MAX_POLY_X\n");
+##    printf $p3_input_fh ("PRIMER_GC_CLAMP=$PRIMER_GC_CLAMP\n");
+##    printf $p3_input_fh ("PRIMER_THERMODYNAMIC_PARAMETERS_PATH=$PRIMER3_CONFIG\n");
+##    printf $p3_input_fh ("=\n");
+##
+##}
+#
+################################################################
+#sub parseP3_output{
+#    my $p3_output = $_[0]; # file name
+#
+#	# We are going to keep track of a weird phenomenon only seen in one
+#	# project - the generation of identical forward and reverse primers. The
+#	# sequences from this project were overlapping paired ends that were joined.
+#	# Apparently something went wrong and weird sequences were obtained, all of
+#	# which yield the identical primers.
+#	# This is not reported in the final stats, just as part of the standard output.
+#    my $identical_primer_cnt = 0;
+#
+#    # The primers output file separates information about different sequences
+#    # with an equal sign on a single line. So, we want to set the file line
+#    # delimiter (for looping on the input file below) to a single equal sign
+#    # followed by a line feed.  This way were guranteed to have all the primer
+#    # information together per line
+#    local $/ = "=\n";
+#
+#    open (P3O, $p3_output) || die "could not open $_\n";
+#
+#    # Read in all of the lines of the input file
+#	my $primer_record;
+#    while ($primer_record = <P3O>) {
+#        my $start = "";
+#        my $seq_id = "";
+#        my $ssr_id = "";
+#        my $forward = "";
+#        my $reverse = "";
+#        my $product_size = "";
+#        my $left_tm = "";
+#        my $right_tm = "";
+#
+#		if ($primer_record =~ /SEQUENCE_ID=(\S+)/) {
+#		    $ssr_id = $1;
+#		}
+#		# get the primary primers only
+#		if ($primer_record =~ /PRIMER_LEFT_0_SEQUENCE=(\S+)/) {
+#		    $forward = $1;
+#		}
+#		if ($primer_record =~ /PRIMER_RIGHT_0_SEQUENCE=(\S+)/) {
+#		    $reverse = $1;
+#		}
+#		if ($primer_record =~ /PRIMER_LEFT_0_TM=(\S+)/) {
+#		    $left_tm = $1;
+#		}
+#		if ($primer_record =~ /PRIMER_RIGHT_0_TM=(\S+)/) {
+#		    $right_tm = $1;
+#		}
+#		if ($primer_record =~ /PRIMER_PAIR_0_PRODUCT_SIZE=(\S+)/) {
+#		    $product_size = $1;
+#		}
+#
+#		if(length $forward > 1){
+#			if($forward eq $reverse){
+#				print "FLAG: problem with $ssr_id\n";
+#				$identical_primer_cnt++;
+#			}
+#			else{
+#				$SSR_STATS{$ssr_id}{FORWARD} = $forward;
+#				$SSR_STATS{$ssr_id}{REVERSE} = $reverse;
+#				$SSR_STATS{$ssr_id}{PRODUCT_SIZE} = $product_size;
+#				$SSR_STATS{$ssr_id}{LEFT_TM} = $left_tm;
+#				$SSR_STATS{$ssr_id}{RIGHT_TM} = $right_tm;
+#
+#			}
+#		}
+#	}
+#
+#    print "total identical primers: $identical_primer_cnt\n";
+#}
+#
+#
+################################################################
+#sub create_primer_flat_files{
+#	my $di_primer_out = shift;
+#	my $tri_primer_out = shift;
+#	my $tetra_primer_out = shift;
+#
+#
+#	_print_primer_flat_files("2", $di_primer_out);
+#	_print_primer_flat_files("3", $tri_primer_out);
+#	_print_primer_flat_files("4", $tetra_primer_out);
+#
+#
+##                        print $fastaout_fh ">$contig $motif.$ssrStart-$ssrEnd\n$seq\n";
+##                        #print "\t$forward\n";
+##                        $SSR_w_PRIMER_COUNT++;
+##                        if(length $motif == 2){
+##                            print $di_fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
+##                            print $di_fh "\n";
+##                            my $tmp = $MOTIFLEN_w_PRIMERS{2};
+##                            $tmp++;
+##                            $MOTIFLEN_w_PRIMERS{2} = $tmp;
+##                            my $cnt = ($ssrEnd-$ssrStart+1)/2;
+#
+#}
+################################################################
+#sub _print_primer_flat_files{
+#	my $motif_len = shift;
+#	my $file_name = shift;
+#
+#    open (OUT, ">$file_name");
+#	foreach my $ssr_id (keys %SSR_STATS){
+#
+#		# for flat files, only print SSRs with the right 
+#		# motif length and 
+#		# that are not multis and
+#		# that have primers
+#		if(length $SSR_STATS{$ssr_id}{MOTIF} == $motif_len &&
+#			$SSR_STATS{$ssr_id}{MULTI} == 'FALSE' &&
+#			$SSR_STATS{$ssr_id}{FORWARD} =~ /\S/
+#		){
+#
+#			print OUT join("\t",
+#				$ssr_id,
+#				$SSR_STATS{$ssr_id}{MOTIF},
+#				$SSR_STATS{$ssr_id}{START},
+#				$SSR_STATS{$ssr_id}{END},
+#				$SSR_STATS{$ssr_id}{FORWARD},
+#				$SSR_STATS{$ssr_id}{REVERSE},
+#				$SSR_STATS{$ssr_id}{LEFT_TM},
+#				$SSR_STATS{$ssr_id}{RIGHT_TM},
+#				$SSR_STATS{$ssr_id}{PRODUCT_SIZE},
+#				#$SSR_STATS{$ssr_id}{SEQ},
+#				#$SSR_STATS{$ssr_id}{SEQM}
+#			);
+#		}
+#	}
+#	close OUT;
+#}
+#
+################################################################
+#sub initiate_workbooks{
+#    my $workbook = $_[0]; # file name
+#    my $formats  = $_[1]; # file name
+#    my $project  = $_[2]; # file name
+#
+#	my $di_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Dinucleotide");
+#	my $tri_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Trinucleotide");
+#	my $tetra_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Tetranucleotide");
+#
+#	return($di_worksheet, $tri_worksheet, $tetra_worksheet);
+#}
+################################################################
+#sub _initiate_worksheet{
+#    my $workbook = $_[0];
+#    my $formats  = $_[1];
+#    my $project  = $_[2];
+#	my $name     = $_[3];
+#
+#    my $worksheet = $workbook->add_worksheet($name);
+#    $worksheet->set_column('A:A', 60, $formats->{text});
+#    $worksheet->set_column('F:G', 30, $formats->{text});
+#    #$worksheet->set_column('J:J', 100, $formats->{text});
+#    $worksheet->write('A1', "$name Repeats for $project", $formats->{header});
+#    $worksheet->write('A2', 'Sequence Name', $formats->{header});
+#	$worksheet->write('B2', 'Motif', $formats->{header});
+#    $worksheet->write('C2', '# Repeats', $formats->{header});
+#    $worksheet->write('D2', 'Start', $formats->{header});
+#    $worksheet->write('E2', 'End', $formats->{header});
+#    $worksheet->write('F2', 'Forward Primer', $formats->{header});
+#    $worksheet->write('G2', 'Reverse Primer', $formats->{header});
+#    $worksheet->write('H2', 'Forward Tm', $formats->{header});
+#    $worksheet->write('I2', 'Reverse Tm', $formats->{header});
+#    $worksheet->write('J2', 'Fragment Size', $formats->{header});
+#    #$worksheet->write('J2', 'Sequence', $formats->{header});
+#
+#	return $worksheet;
+#}
+#
+#sub _print_worksheet{
+#    my $worksheet = $_[0];
+#    my $formats   = $_[1];
+#	my $name      = $_[2];
+#
+#
+#}
+##
+##                            $di_worksheet->write("A$di_index", $contig, $formats->{text});
+##                                $di_worksheet->write("B$di_index", $motif, $formats->{text});
+##                                $di_worksheet->write("C$di_index", $cnt, $formats->{text});
+##                                $di_worksheet->write("D$di_index", $ssrStart, $formats->{text});
+##                                $di_worksheet->write("E$di_index", $ssrEnd, $formats->{text});
+##                                $di_worksheet->write("F$di_index", $forward, $formats->{text});
+##                                $di_worksheet->write("G$di_index", $reverse, $formats->{text});
+##                                $di_worksheet->write("H$di_index", $left_tm, $formats->{text});
+##                                $di_worksheet->write("I$di_index", $right_tm, $formats->{text});
+##                                $di_worksheet->write("J$di_index", $product_size, $formats->{text});
+##                                #$di_worksheet->write("J$di_index", $seq, $formats->{text});
+##                            $di_index++;
+##
+##                            # Increment motif count
+##                            foreach my $group (keys %MOTIFS) {
+##                                my $motifUC = uc($motif);
+##                                if($group =~ /\|$motifUC\|/){
+##                                    # If this group contains this motif
+##                                    my $tmp = $MOTIFS{$group}++;
+##                                    $tmp++;
+##                                    $MOTIFS{$group} = $tmp;
+##                                }
+##                            }# end foreach $group
+##                        }
+##                        elsif(length $motif == 3){
+##                            print $tri_fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
+##                            print $tri_fh "\n";
+##                            my $tmp = $MOTIFLEN_w_PRIMERS{3};
+##                            $tmp++;
+##                            $MOTIFLEN_w_PRIMERS{3} = $tmp;
+##
+##                            my $cnt = ($ssrEnd-$ssrStart+1)/3;
+##                            $tri_worksheet->write("A$tri_index", $contig, $formats->{text});
+##                                $tri_worksheet->write("B$tri_index", $motif, $formats->{text});
+##                                $tri_worksheet->write("C$tri_index", $cnt, $formats->{text});
+##                                $tri_worksheet->write("D$tri_index", $ssrStart, $formats->{text});
+##                                $tri_worksheet->write("E$tri_index", $ssrEnd, $formats->{text});
+##                                $tri_worksheet->write("F$tri_index", $forward, $formats->{text});
+##                                $tri_worksheet->write("G$tri_index", $reverse, $formats->{text});
+##                                $tri_worksheet->write("H$tri_index", $left_tm, $formats->{text});
+##                                $tri_worksheet->write("I$tri_index", $right_tm, $formats->{text});
+##                                $tri_worksheet->write("J$tri_index", $product_size, $formats->{text});
+##                                #$tri_worksheet->write("J$tri_index", $seq, $formats->{text});
+##                            $tri_index++;
+##                        }
+##                        elsif(length $motif == 4){
+##							_printLineToWorksheet();
+##                        }
+##                    }
+##                    else{
+##                        print $fastamulti_fh ">$contig\n$seq\n";
+##                    }
+##                }
+##            }
+##        }
+##    } # end while <INPUT>
+##
+##    close P3O;
+##
+##    return;
+##}
+##
+##################################################################
+##sub _printLineToWorksheet{
+##	my $fh = shift;
+##	my $index = shift;
+##	my $worksheet = shift;
+##
+##	my $contig = shift;
+##	my $motif = shift;
+##	my $ssrStart = shift;
+##	my $ssrEnd = shift;
+##	my $forward = shift;
+##	my $reverse = shift;
+##	my $left_tm = shift;
+##	my $right_tm = shift;
+##	my $product_size = shift;
+##	my $seq = shift;
+##	my $seq_masked = shift;
+##
+##	print $fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
+##	print $fh "\n";
+##	my $tmp = $MOTIFLEN_w_PRIMERS{4};
+##	$tmp++;
+##	$MOTIFLEN_w_PRIMERS{4} = $tmp;
+##
+##	my $cnt = ($ssrEnd-$ssrStart+1)/4;
+##	$worksheet->write("A$index", $contig, $formats->{text});
+##		$worksheet->write("B$index", $motif, $formats->{text});
+##		$worksheet->write("C$index", $cnt, $formats->{text});
+##		$worksheet->write("D$index", $ssrStart, $formats->{text});
+##		$worksheet->write("E$index", $ssrEnd, $formats->{text});
+##		$worksheet->write("F$index", $forward, $formats->{text});
+##		$worksheet->write("G$index", $reverse, $formats->{text});
+##		$worksheet->write("H$index", $left_tm, $formats->{text});
+##		$worksheet->write("I$index", $right_tm, $formats->{text});
+##		$worksheet->write("J$index", $product_size, $formats->{text});
+##	$index++;
+##
+##}
+##
+#
+#################################################################
+#sub printStats{
+#    my $stats_out = $_[0]; # file name
+#    my $workbook  = $_[1]; # file name
+#    my $formats   = $_[2]; # file name
+#    my $project   = $_[3]; # file name
+#
+#
+#    ##--------------------------------------------------------------------
+#    ## calculate some info
+#
+#    my $time = scalar localtime;                   # Get the current time
+#
+#    ## count number of seqs with single or multiple SSRs
+#    my $SINGLE_SSR_COUNT_w_primers = 0;
+#    my $SINGLE_SSR_COUNT = 0;
+#    my $MULTI_SSR_COUNT = 0;
+#
+#    foreach my $contig_name (keys %CONTIG_SSR_STARTS){
+#        my $starts = scalar @{ $CONTIG_SSR_STARTS{$contig_name} };
+#        if($starts == 1){
+#            $SINGLE_SSR_COUNT++;
+#            my @starts = @{ $CONTIG_SSR_STARTS{$contig_name} };
+#            my $start = $starts[0];
+#            my $ssr_id = $contig_name."_ssr".$start;
+#            if(exists $SSR_STATS{$ssr_id} && $SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){
+#                $SINGLE_SSR_COUNT_w_primers++;
 #            }
 #        }
-#    } # end while <INPUT>
+#        elsif($starts > 1){ $MULTI_SSR_COUNT++; }
+#    }
 #
-#    close P3O;
+#    my $SSR_COUNT_w_primers = 0;
+#    foreach my $ssr_id (keys %SSR_STATS){
+#        if($SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){
+#            $SSR_COUNT_w_primers++;
+#        }
+#    }
 #
+#    ##--------------------------------------------------------------------
+#    ## print text file
+#    open (OUTS, ">".$stats_out) || die "ERROR cannot open $stats_out\n";
+#
+#    print OUTS 'SSR Summary Report\n';
+#    print OUTS "Analsis of $SEQ_COUNT sequences\n";
+#    print OUTS "$time\n";
+#    print OUTS "Number of SSRs identified\t$SSR_COUNT\n";
+#    print OUTS "Number of sequences with 1 SSR: $SINGLE_SSR_COUNT\n";
+#    print OUTS "Number of sequences with more than one SSR: $MULTI_SSR_COUNT\n";
+#    print OUTS "\n";
+#    print OUTS "Base Pairs in Motif\tMin # Reps\tMax # Reps\n";
+#    print OUTS "--------------------------------------\n";
+#    print OUTS "2 (Dinucleotides)\t$MIN_REPS_2bp\t$MAX_REPS_2bp\n";
+#    print OUTS "3 (Trinucleotides)\t$MIN_REPS_3bp\t$MAX_REPS_3bp\n";
+#    print OUTS "4 (Tetranucleotides)\t$MIN_REPS_4bp\t$MAX_REPS_4bp\n";
+#    print OUTS "\n";
+#    print OUTS "Motif Patterns\tNumber of SSRs Found\n";
+#    print OUTS "--------------------------------------\n";
+#    my $group;
+#    foreach $group (sort {length $a <=> length $b} keys %MOTIFS){
+#        $group =~ s/^|//;
+#        $group =~ s/|$//;
+#        print OUTS "$group\t$MOTIFS{$group}\n";
+#    }
+#    print OUTS "\n";
+#    print OUTS "Motif Pattern Length\tNumber of SSRs Found\n";
+#    print OUTS "--------------------------------------\n";
+#
+#    foreach $group (sort keys %MOTIFLEN){
+#        print OUTS "$group\t$MOTIFLEN{$group}\n";
+#    }
+#
+#    print OUTS "SSRS with PRIMERS\n";
+#    print OUTS "Number of SSRs identified with successful primer design: $SSR_COUNT_w_primers\n";
+#    print OUTS "Number of sequences with 1 SSR and successful primer design: $SINGLE_SSR_COUNT_w_primers\n";
+#    print OUTS "Motif Pattern Length\tNumber of SSRs Found\n";
+#    print OUTS "--------------------------------------\n";
+#
+#    foreach $group (sort keys %MOTIFLEN_w_PRIMERS){
+#        print OUTS "$group\t$MOTIFLEN_w_PRIMERS{$group}\n";
+#    }
+#
+#
+#    close OUTS;
+#
+#    ##--------------------------------------------------------------------
+#    ## print excel file
+#    my $worksheet = $workbook->add_worksheet("Summary");
+#
+#    $worksheet->set_column('A:A', 75, $formats->{text});
+#    $worksheet->set_column('B:B', 30, $formats->{text});
+#
+#    $worksheet->write('A1',"SSR Summary Report for $project", $formats->{header});
+#    $worksheet->write('A2',"Analsis of $SEQ_COUNT sequences", $formats->{text});
+#    $worksheet->write('A3',"$time", $formats->{text});
+#
+#    $worksheet->write('A4',"Number of SSRs identified", $formats->{text});
+#        $worksheet->write('B4',"$SSR_COUNT", $formats->{text});
+#    $worksheet->write('A5',"Number of sequences with 1 SSR", $formats->{text});
+#        $worksheet->write('B5',"$SINGLE_SSR_COUNT", $formats->{text});
+#    $worksheet->write('A6',"Number of sequences with more than one SSR", $formats->{text});
+#        $worksheet->write('B6',"$MULTI_SSR_COUNT", $formats->{text});
+#
+#    $worksheet->write('A8','Base Pairs in Motif', $formats->{header});
+#        $worksheet->write('B8','Min # Reps', $formats->{header});
+#        $worksheet->write('C8','Max # Reps', $formats->{header});
+#    $worksheet->write('A9','2 (Dinucleotides)', $formats->{text});
+#        $worksheet->write('B9',"$MIN_REPS_2bp", $formats->{text});
+#        $worksheet->write('C9',"$MAX_REPS_2bp", $formats->{text});
+#    $worksheet->write('A10','3 (Trinucleotides)', $formats->{text});
+#        $worksheet->write('B10',"$MIN_REPS_3bp", $formats->{text});
+#        $worksheet->write('C10',"$MAX_REPS_3bp", $formats->{text});
+#    $worksheet->write('A11','4 (Tetranucleotides)', $formats->{text});
+#        $worksheet->write('B11',"$MIN_REPS_4bp", $formats->{text});
+#        $worksheet->write('C11',"$MAX_REPS_4bp", $formats->{text});
+#
+#    $worksheet->write('A13','Motif Patterns', $formats->{header});
+#        $worksheet->write('B13','Number of SSRs Found', $formats->{header});
+#    my $group;
+#    my $i = 13;
+#    foreach $group (sort {length $a <=> length $b} keys %MOTIFS){
+#        $group =~ s/^|//;
+#        $group =~ s/|$//;
+#        $i++;
+#        $worksheet->write("A$i", $group, $formats->{text});
+#        $worksheet->write("B$i", $MOTIFS{$group}, $formats->{text});
+#    }
+#
+#    $i++;
+#    $i++;
+#    $worksheet->write("A$i",'Motif Pattern Length', $formats->{header});
+#        $worksheet->write("B$i",'Number of SSRs Found', $formats->{header});
+#    foreach $group (sort keys %MOTIFLEN){
+#        $i++;
+#        $worksheet->write("A$i", "$group bp", $formats->{text});
+#        $worksheet->write("B$i", $MOTIFLEN{$group}, $formats->{text});
+#    }
+#
+#    $i++;
+#    $i++;
+#    $worksheet->write("A$i",'SSRs with Primers', $formats->{header});
+#    $i++;
+#    $worksheet->write("A$i", "Number of SSRs identified with successful primer design", $formats->{text});
+#        $worksheet->write("B$i", $SSR_COUNT_w_primers, $formats->{text});
+#    $i++;
+#    $worksheet->write("A$i", "Number of sequences with 1 SSR and successful primer design", $formats->{text});
+#        $worksheet->write("B$i", $SINGLE_SSR_COUNT_w_primers, $formats->{text});
+#
+#    $i++;
+#    $i++;
+#    $worksheet->write("A$i",'Motif Pattern Length (Only SSRs with Primers)', $formats->{header});
+#        $worksheet->write("B$i",'Number of SSRs Found', $formats->{header});
+#    foreach $group (sort keys %MOTIFLEN_w_PRIMERS){
+#        $i++;
+#        $worksheet->write("A$i", "$group bp", $formats->{text});
+#        $worksheet->write("B$i", $MOTIFLEN_w_PRIMERS{$group}, $formats->{text});
+#    }
+#
+#    close OUTS;
+#    return $worksheet;
+#
+#}
+#
+################################################################
+#
+#sub createExcelWorkbook{
+#
+#    my $ssr_xlsx = $_[0];
+#
+#    my $workbook;        # the excel workbook
+#    my %formats;
+#    my %header;
+#    my %text;
+#    my %bigheader;
+#    my %highlight;
+#
+#
+#    # Create an excel workbook
+#    $workbook = Excel::Writer::XLSX->new("$ssr_xlsx");
+#
+#    # Setup the four formats that will be necessary for the excel spreadsheet
+#    %header = (font         => 'Calibri',
+#                size         => 12,
+#                bold         => 1,
+#                color        => 'black',
+#                align        => 'left',
+#                text_wrap    => 1);
+#
+#    %text = (font         => 'Calibri',
+#                size         => 12,
+#                color        => 'black',
+#                align        => 'left',
+#                text_wrap    => 1);
+#
+#    #add the formats to the workbook
+#    $formats{header} = $workbook->add_format(%header);
+#    $formats{text} = $workbook->add_format(%text);
+#
+#    return ($workbook,\%formats);
+#
+#}
+#
+#
+################################################################
+#sub _printUsage {
+#    print "Usage: $0.pl <arguments>";
+#    print qq(
+#    The list of arguments includes:
+#
+#    -f|--fasta_file <fasta_file>
+#        Required.  The file of the sequences to be searched. 
+#
+#    -m|--masked_file <masked_fasta_file>
+#        Required.  A soft-masked version of the fasta file (soft masked means low
+#        complexity sequences are in lower case bases.)
+#
+#    -p|--project "project name"
+#        Optional.  A project name for use in the Excel output.
+#
+#    );
+#    print "\n";
 #    return;
 #}
 #
-#################################################################
-#sub _printLineToWorksheet{
-#	my $fh = shift;
-#	my $index = shift;
-#	my $worksheet = shift;
 #
-#	my $contig = shift;
-#	my $motif = shift;
-#	my $ssrStart = shift;
-#	my $ssrEnd = shift;
-#	my $forward = shift;
-#	my $reverse = shift;
-#	my $left_tm = shift;
-#	my $right_tm = shift;
-#	my $product_size = shift;
-#	my $seq = shift;
-#	my $seq_masked = shift;
-#
-#	print $fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
-#	print $fh "\n";
-#	my $tmp = $MOTIFLEN_w_PRIMERS{4};
-#	$tmp++;
-#	$MOTIFLEN_w_PRIMERS{4} = $tmp;
-#
-#	my $cnt = ($ssrEnd-$ssrStart+1)/4;
-#	$worksheet->write("A$index", $contig, $formats->{text});
-#		$worksheet->write("B$index", $motif, $formats->{text});
-#		$worksheet->write("C$index", $cnt, $formats->{text});
-#		$worksheet->write("D$index", $ssrStart, $formats->{text});
-#		$worksheet->write("E$index", $ssrEnd, $formats->{text});
-#		$worksheet->write("F$index", $forward, $formats->{text});
-#		$worksheet->write("G$index", $reverse, $formats->{text});
-#		$worksheet->write("H$index", $left_tm, $formats->{text});
-#		$worksheet->write("I$index", $right_tm, $formats->{text});
-#		$worksheet->write("J$index", $product_size, $formats->{text});
-#	$index++;
-#
-#}
-#
-
-################################################################
-sub printStats{
-    my $stats_out = $_[0]; # file name
-    my $workbook  = $_[1]; # file name
-    my $formats   = $_[2]; # file name
-    my $project   = $_[3]; # file name
-
-
-    ##--------------------------------------------------------------------
-    ## calculate some info
-
-    my $time = scalar localtime;                   # Get the current time
-
-    ## count number of seqs with single or multiple SSRs
-    my $SINGLE_SSR_COUNT_w_primers = 0;
-    my $SINGLE_SSR_COUNT = 0;
-    my $MULTI_SSR_COUNT = 0;
-
-    foreach my $contig_name (keys %CONTIG_SSR_STARTS){
-        my $starts = scalar @{ $CONTIG_SSR_STARTS{$contig_name} };
-        if($starts == 1){
-            $SINGLE_SSR_COUNT++;
-            my @starts = @{ $CONTIG_SSR_STARTS{$contig_name} };
-            my $start = $starts[0];
-            my $ssr_id = $contig_name."_ssr".$start;
-            if(exists $SSR_STATS{$ssr_id} && $SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){
-                $SINGLE_SSR_COUNT_w_primers++;
-            }
-        }
-        elsif($starts > 1){ $MULTI_SSR_COUNT++; }
-    }
-
-    my $SSR_COUNT_w_primers = 0;
-    foreach my $ssr_id (keys %SSR_STATS){
-        if($SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){
-            $SSR_COUNT_w_primers++;
-        }
-    }
-
-    ##--------------------------------------------------------------------
-    ## print text file
-    open (OUTS, ">".$stats_out) || die "ERROR cannot open $stats_out\n";
-
-    print OUTS 'SSR Summary Report\n';
-    print OUTS "Analsis of $SEQ_COUNT sequences\n";
-    print OUTS "$time\n";
-    print OUTS "Number of SSRs identified\t$SSR_COUNT\n";
-    print OUTS "Number of sequences with 1 SSR: $SINGLE_SSR_COUNT\n";
-    print OUTS "Number of sequences with more than one SSR: $MULTI_SSR_COUNT\n";
-    print OUTS "\n";
-    print OUTS "Base Pairs in Motif\tMin # Reps\tMax # Reps\n";
-    print OUTS "--------------------------------------\n";
-    print OUTS "2 (Dinucleotides)\t$MIN_REPS_2bp\t$MAX_REPS_2bp\n";
-    print OUTS "3 (Trinucleotides)\t$MIN_REPS_3bp\t$MAX_REPS_3bp\n";
-    print OUTS "4 (Tetranucleotides)\t$MIN_REPS_4bp\t$MAX_REPS_4bp\n";
-    print OUTS "\n";
-    print OUTS "Motif Patterns\tNumber of SSRs Found\n";
-    print OUTS "--------------------------------------\n";
-    my $group;
-    foreach $group (sort {length $a <=> length $b} keys %MOTIFS){
-        $group =~ s/^|//;
-        $group =~ s/|$//;
-        print OUTS "$group\t$MOTIFS{$group}\n";
-    }
-    print OUTS "\n";
-    print OUTS "Motif Pattern Length\tNumber of SSRs Found\n";
-    print OUTS "--------------------------------------\n";
-
-    foreach $group (sort keys %MOTIFLEN){
-        print OUTS "$group\t$MOTIFLEN{$group}\n";
-    }
-
-    print OUTS "SSRS with PRIMERS\n";
-    print OUTS "Number of SSRs identified with successful primer design: $SSR_COUNT_w_primers\n";
-    print OUTS "Number of sequences with 1 SSR and successful primer design: $SINGLE_SSR_COUNT_w_primers\n";
-    print OUTS "Motif Pattern Length\tNumber of SSRs Found\n";
-    print OUTS "--------------------------------------\n";
-
-    foreach $group (sort keys %MOTIFLEN_w_PRIMERS){
-        print OUTS "$group\t$MOTIFLEN_w_PRIMERS{$group}\n";
-    }
-
-
-    close OUTS;
-
-    ##--------------------------------------------------------------------
-    ## print excel file
-    my $worksheet = $workbook->add_worksheet("Summary");
-
-    $worksheet->set_column('A:A', 75, $formats->{text});
-    $worksheet->set_column('B:B', 30, $formats->{text});
-
-    $worksheet->write('A1',"SSR Summary Report for $project", $formats->{header});
-    $worksheet->write('A2',"Analsis of $SEQ_COUNT sequences", $formats->{text});
-    $worksheet->write('A3',"$time", $formats->{text});
-
-    $worksheet->write('A4',"Number of SSRs identified", $formats->{text});
-        $worksheet->write('B4',"$SSR_COUNT", $formats->{text});
-    $worksheet->write('A5',"Number of sequences with 1 SSR", $formats->{text});
-        $worksheet->write('B5',"$SINGLE_SSR_COUNT", $formats->{text});
-    $worksheet->write('A6',"Number of sequences with more than one SSR", $formats->{text});
-        $worksheet->write('B6',"$MULTI_SSR_COUNT", $formats->{text});
-
-    $worksheet->write('A8','Base Pairs in Motif', $formats->{header});
-        $worksheet->write('B8','Min # Reps', $formats->{header});
-        $worksheet->write('C8','Max # Reps', $formats->{header});
-    $worksheet->write('A9','2 (Dinucleotides)', $formats->{text});
-        $worksheet->write('B9',"$MIN_REPS_2bp", $formats->{text});
-        $worksheet->write('C9',"$MAX_REPS_2bp", $formats->{text});
-    $worksheet->write('A10','3 (Trinucleotides)', $formats->{text});
-        $worksheet->write('B10',"$MIN_REPS_3bp", $formats->{text});
-        $worksheet->write('C10',"$MAX_REPS_3bp", $formats->{text});
-    $worksheet->write('A11','4 (Tetranucleotides)', $formats->{text});
-        $worksheet->write('B11',"$MIN_REPS_4bp", $formats->{text});
-        $worksheet->write('C11',"$MAX_REPS_4bp", $formats->{text});
-
-    $worksheet->write('A13','Motif Patterns', $formats->{header});
-        $worksheet->write('B13','Number of SSRs Found', $formats->{header});
-    my $group;
-    my $i = 13;
-    foreach $group (sort {length $a <=> length $b} keys %MOTIFS){
-        $group =~ s/^|//;
-        $group =~ s/|$//;
-        $i++;
-        $worksheet->write("A$i", $group, $formats->{text});
-        $worksheet->write("B$i", $MOTIFS{$group}, $formats->{text});
-    }
-
-    $i++;
-    $i++;
-    $worksheet->write("A$i",'Motif Pattern Length', $formats->{header});
-        $worksheet->write("B$i",'Number of SSRs Found', $formats->{header});
-    foreach $group (sort keys %MOTIFLEN){
-        $i++;
-        $worksheet->write("A$i", "$group bp", $formats->{text});
-        $worksheet->write("B$i", $MOTIFLEN{$group}, $formats->{text});
-    }
-
-    $i++;
-    $i++;
-    $worksheet->write("A$i",'SSRs with Primers', $formats->{header});
-    $i++;
-    $worksheet->write("A$i", "Number of SSRs identified with successful primer design", $formats->{text});
-        $worksheet->write("B$i", $SSR_COUNT_w_primers, $formats->{text});
-    $i++;
-    $worksheet->write("A$i", "Number of sequences with 1 SSR and successful primer design", $formats->{text});
-        $worksheet->write("B$i", $SINGLE_SSR_COUNT_w_primers, $formats->{text});
-
-    $i++;
-    $i++;
-    $worksheet->write("A$i",'Motif Pattern Length (Only SSRs with Primers)', $formats->{header});
-        $worksheet->write("B$i",'Number of SSRs Found', $formats->{header});
-    foreach $group (sort keys %MOTIFLEN_w_PRIMERS){
-        $i++;
-        $worksheet->write("A$i", "$group bp", $formats->{text});
-        $worksheet->write("B$i", $MOTIFLEN_w_PRIMERS{$group}, $formats->{text});
-    }
-
-    close OUTS;
-    return $worksheet;
-
-}
-
-###############################################################
-
-sub createExcelWorkbook{
-
-    my $ssr_xlsx = $_[0];
-
-    my $workbook;        # the excel workbook
-    my %formats;
-    my %header;
-    my %text;
-    my %bigheader;
-    my %highlight;
-
-
-    # Create an excel workbook
-    $workbook = Excel::Writer::XLSX->new("$ssr_xlsx");
-
-    # Setup the four formats that will be necessary for the excel spreadsheet
-    %header = (font         => 'Calibri',
-                size         => 12,
-                bold         => 1,
-                color        => 'black',
-                align        => 'left',
-                text_wrap    => 1);
-
-    %text = (font         => 'Calibri',
-                size         => 12,
-                color        => 'black',
-                align        => 'left',
-                text_wrap    => 1);
-
-    #add the formats to the workbook
-    $formats{header} = $workbook->add_format(%header);
-    $formats{text} = $workbook->add_format(%text);
-
-    return ($workbook,\%formats);
-
-}
-
-
-###############################################################
-sub _printUsage {
-    print "Usage: $0.pl <arguments>";
-    print qq(
-    The list of arguments includes:
-
-    -f|--fasta_file <fasta_file>
-        Required.  The file of the sequences to be searched. 
-
-    -m|--masked_file <masked_fasta_file>
-        Required.  A soft-masked version of the fasta file (soft masked means low
-        complexity sequences are in lower case bases.)
-
-    -p|--project "project name"
-        Optional.  A project name for use in the Excel output.
-
-    );
-    print "\n";
-    return;
-}
-
-
-1;
+#1;
