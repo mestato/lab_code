@@ -1,8 +1,6 @@
 #!/usr/bin/env perl
 ################################################################################
 # Author: Meg Staton & Stephen Ficklin
-# Date: Jan 23rd, 2014
-# Version: 1
 #
 # DESCRIPTION
 # -----------
@@ -263,16 +261,15 @@ sub main{
     print "$PRIMER3 < $p3_input > $p3_output\n";
     my $status = system("$PRIMER3 < $p3_input > $p3_output");
 
-    print "creating Excel workbook...";
-    my ($workbook,$formats) = createExcelWorkbook($ssr_xlsx);
-    print "done.\n";
-
     print "parsing primer3...";
     parseP3_output($p3_output);
     print "done.\n";
 
 	##---------------------------------------------------------------
-	## Producing output - Excel and statistics
+	## Producing output - statistics
+
+	##---------------------------------------------------------------
+	## Producing output - Fasta files and flat files
 
 	# open filehandles
     open (DI, ">$di_primer_out");
@@ -285,18 +282,23 @@ sub main{
     my $tetra_fh = *TETRA;
     my $fastaout_fh = *FASTAOUT;
     my $fastamulti_fh = *FASTAMULTI;
-
-	# generate filehandles
-	my ($di_worksheet, $tri_worksheet, $tetra_worksheet) = initiate_workbooks($workbook, $formats, $project);
-
-
-
-    print "done.\n";
     close DI;
     close TRI;
     close TETRA;
     close FASTAOUT;
     close FASTAMULTI;
+
+	##---------------------------------------------------------------
+	## Producing output - Excel
+
+    print "creating Excel workbook...";
+    my ($workbook,$formats) = createExcelWorkbook($ssr_xlsx);
+    print "done.\n";
+
+    print "generate output...";
+	# generate filehandles
+	my ($di_worksheet, $tri_worksheet, $tetra_worksheet) = initiate_workbooks($workbook, $formats, $project);
+    print "done.\n";
 
 	#print "stats...\n";
 	#my $worksheet_stats = printStats($stats_out, $workbook, $formats, $project);
@@ -305,7 +307,6 @@ sub main{
 	#$worksheet_stats->select();
 	#$workbook->close();
 
-    print "done.\n";
 }
 
 ###############################################################
@@ -672,7 +673,13 @@ sub _initiate_worksheet{
 	return $worksheet;
 }
 
+sub _print_worksheet{
+    my $worksheet = $_[0];
+    my $formats   = $_[1];
+	my $name      = $_[2];
 
+
+}
 #                    my $multi_flag = 0;
 #                    ## skip contigs with more than one ssr
 #                    if(scalar @{ $CONTIG_SSR_STARTS{$contig}} == 1){
