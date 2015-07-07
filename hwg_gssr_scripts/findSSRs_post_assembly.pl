@@ -40,8 +40,8 @@
 # A text file of statistics about the SSRs discovered.
 #
 # <input-file-name>.ssr_report.txt
-# A tab-delimited file with each SSR.  The columns are sequence name,
-# motif, number of repeats, start position, end position, compound (T/F).
+# A tab-delimited file with each SSR.  The columns are SSR ID,
+# motif, number of repeats, start position, end position.
 #
 # <input-file-name>.ssr_report.xlsx
 # A excel file with SSR results and stats
@@ -50,7 +50,7 @@
 # <input-file-name>.tri_primer_report.txt
 # <input-file-name>.tetra_primer_report.txt
 # Tab-delimited files with sequences with a specified SSR motif length.  Columns are
-# sequence name, motif, start position, end position, left primer,
+# SSR ID, motif, number of repeats, start position, end position, left primer,
 # right primer, left primer Tm, right primer Tm, amplicon size
 #
 # Details:
@@ -678,7 +678,7 @@ sub create_flat_files{
 
 	##printer headers
 	print OUTS join("\t", "SSR ID",
-				"motif", "start position", "end position");
+				"motif", "number of repeats", "start position", "end position");
 	print OUTS "\n";
 
 	print OUT2 join("\t", "SSR ID",
@@ -704,6 +704,7 @@ sub create_flat_files{
 		print OUTS join("\t",
 			$ssr_id,
 			$SSR_STATS{$ssr_id}{MOTIF},
+			$SSR_STATS{$ssr_id}{NO_REPEATS},
 			$SSR_STATS{$ssr_id}{START},
 				$SSR_STATS{$ssr_id}{END},
 		);
