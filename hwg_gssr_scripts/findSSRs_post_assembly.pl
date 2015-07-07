@@ -252,17 +252,10 @@ sub main{
 	calculate_stats();
 	print_stats($stats_out);
 
-
 	##---------------------------------------------------------------
 	## Producing output - Excel
-	#create_excel_file($ssr_xlsx);
-
-	#my ($workbook,$formats) = createExcelWorkbook($ssr_xlsx);
-	#initiate_workbooks($workbook, $formats, $project);
-	#my $worksheet_stats = printStats($stats_out, $workbook, $formats, $project);
-	#$worksheet_stats->activate();
-	#$worksheet_stats->select();
-	#$workbook->close();
+	create_excel_file($ssr_xlsx, $project);
+    print "done.\n";
 
 }
 
@@ -807,7 +800,7 @@ sub print_stats{
     open (OUTS, ">".$stats_out) || die "ERROR cannot open $stats_out\n";
 
     print OUTS 'SSR Summary Report\n';
-    print OUTS "Analsis of $SEQ_COUNT sequences\n";
+    print OUTS "Analysis of $SEQ_COUNT sequences\n";
     print OUTS "$TIME\n";
 	print OUTS "\n";
     print OUTS "Number of sequences with at least one SSR\t$SEQ_w_SSRS\n";
@@ -826,6 +819,7 @@ sub print_stats{
     print OUTS "3 (Trinucleotides)\t$MIN_REPS_3bp\t$MAX_REPS_3bp\n";
     print OUTS "4 (Tetranucleotides)\t$MIN_REPS_4bp\t$MAX_REPS_4bp\n";
     print OUTS "\n";
+	print OUTS "Chart of motif pattern frequence (compound SSRs excluded)\n";
     print OUTS "Motif Patterns\tNumber of SSRs Found\n";
     print OUTS "--------------------------------------\n";
     my $group;
@@ -835,6 +829,7 @@ sub print_stats{
         print OUTS "$group\t$MOTIFS{$group}\n";
     }
     print OUTS "\n";
+	print OUTS "Chart of motif pattern length frequence (compound SSRs excluded)\n";
     print OUTS "Motif Pattern Length\tNumber of SSRs\n";
     print OUTS "--------------------------------------\n";
 
@@ -844,6 +839,7 @@ sub print_stats{
 
     print OUTS "\n";
     print OUTS "SSRS with Primers \n";
+	print OUTS "Chart of motif pattern length frequence (compound SSRs excluded)\n";
     print OUTS "Motif Pattern Length\tNumber of SSRs\n";
     print OUTS "--------------------------------------\n";
 
@@ -857,20 +853,144 @@ sub print_stats{
 }
 
 ################################################################
-#sub initiate_workbooks{
-#    my $workbook = $_[0]; # file name
-#    my $formats  = $_[1]; # file name
-#    my $project  = $_[2]; # file name
-#
-#	my $di_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Dinucleotide");
-#	my $tri_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Trinucleotide");
-#	my $tetra_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Tetranucleotide");
-#
-#	_print_worksheet($di_worksheet, $formats, $project);
-#	_print_worksheet($tri_worksheet, $formats, $project);
-#	_print_worksheet($tetra_worksheet, $formats, $project);
-#}
-################################################################
+
+sub create_excel_file{
+	my $ssr_xlsx = shift;
+	my $project = shift;
+
+    # Create an excel workbook
+    my $workbook = Excel::Writer::XLSX->new("$ssr_xlsx");
+
+    # Setup the formats that will be necessary for the excel spreadsheet
+    my %header = (font         => 'Calibri',
+                size         => 12,
+                bold         => 1,
+                color        => 'black',
+                align        => 'left',
+                text_wrap    => 1);
+
+    my %text = (font         => 'Calibri',
+                size         => 12,
+                color        => 'black',
+                align        => 'left',
+                text_wrap    => 1);
+
+    #add the formats to the workbook
+    my $header_format = $workbook->add_format(%header);
+    my $text_format = $workbook->add_format(%text);
+
+	$workbook = create_stats_worksheet($workbook, $header_format, $text_format, $project);
+
+	#my $di_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Dinucleotide");
+	#my $tri_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Trinucleotide");
+	#my $tetra_worksheet  =  _initiate_worksheet($workbook, $formats, $project, "Tetranucleotide");
+
+
+}
+
+sub create_stats_worksheet{
+    my $workbook      = shift;
+    my $header_format = shift;
+    my $text_format   = shift;
+    my $project       = shift;
+
+    my $worksheet = $workbook->add_worksheet("Summary");
+
+	## set all cells to text format
+	## only cells that need the header format will need to specify the format during write
+	## set column widths
+    $worksheet->set_column('A:A', 75, $text_format);
+    $worksheet->set_column('B:B', 30, $text_format);
+    $worksheet->set_column('C:C', 30, $text_format);
+
+    $worksheet->write('A1', "SSR Summary Report for $project", $header_format);
+    $worksheet->write('A2', "Analysis of $SEQ_COUNT sequences");
+    $worksheet->write('A3', "$TIME");
+
+    $worksheet->write('A5', "Number of sequences with at least one SSR");
+	$worksheet->write('B5', "$SEQ_w_SSRS");
+
+    $worksheet->write('A6', "Number of SSRs identified");
+	$worksheet->write('B6', "$SSR_COUNT");
+
+    $worksheet->write('A8', "Number of compound SSRs*:");
+	$worksheet->write('B8', "$SSR_COUNT_COMPOUND");
+
+    $worksheet->write('A9', "Number of SSRs with primers**");
+	$worksheet->write('B9', "$SSR_COUNT_PRIMER");
+
+    $worksheet->write('A11', "*Compound SSRs are defined as any SSRs next to each or separated by less than 15 bases\n");
+
+    $worksheet->write('A12', "**No primers are designed for compound SSRs\n");
+
+    $worksheet->write('A14', "Parameters used for identifying SSRS:\n", $header_format);
+
+    $worksheet->write('A15','Base Pairs in Motif', $header_format);
+    $worksheet->write('B15','Min # Reps', $header_format);
+    $worksheet->write('C15','Max # Reps', $header_format);
+
+    $worksheet->write('A16','2 (Dinucleotides)');
+    $worksheet->write('B16',"$MIN_REPS_2bp");
+    $worksheet->write('C16',"$MAX_REPS_2bp");
+
+    $worksheet->write('A17','3 (Trinucleotides)');
+    $worksheet->write('B17',"$MIN_REPS_3bp");
+    $worksheet->write('C17',"$MAX_REPS_3bp");
+
+    $worksheet->write('A18','4 (Tetranucleotides)');
+    $worksheet->write('B18',"$MIN_REPS_4bp");
+    $worksheet->write('C18',"$MAX_REPS_4bp");
+
+	##----------------------------------------------------------
+	##Chart of motif pattern frequence (compound SSRs excluded)
+
+    $worksheet->write('A20','Chart of motif pattern frequence (compound SSRs excluded)', $header_format);
+    $worksheet->write('A21','Motif Patterns', $header_format);
+    $worksheet->write('B21','Number of SSRs Found', $header_format);
+    my $group;
+    my $i = 21;
+    foreach $group (sort {length $a <=> length $b} keys %MOTIFS){
+        $group =~ s/^|//;
+        $group =~ s/|$//;
+        $i++;
+        $worksheet->write("A$i", $group);
+        $worksheet->write("B$i", $MOTIFS{$group});
+    }
+
+	##----------------------------------------------------------
+	## Chart of motif pattern length frequence (compound SSRs excluded)
+    $i++;
+    $i++;
+	$worksheet->write("A$i", "Chart of motif pattern length frequence (compound SSRs excluded)", $header_format);
+    $i++;
+    $worksheet->write("A$i",'Motif Pattern Length', $header_format);
+    $worksheet->write("B$i",'Number of SSRs Found', $header_format);
+    foreach $group (sort keys %MOTIFLEN){
+        $i++;
+        $worksheet->write("A$i", "$group bp");
+        $worksheet->write("B$i", $MOTIFLEN{$group});
+    }
+
+	##----------------------------------------------------------
+	## SSRs w primers:
+	## Chart of motif pattern length frequence (compound SSRs excluded)
+    $i++;
+    $i++;
+    $worksheet->write("A$i",'SSRs with Primers', $header_format);
+    $i++;
+    $worksheet->write("A$i",'Chart of motif pattern length frequence (compound SSRs excluded)', $header_format);
+    $i++;
+    $worksheet->write("A$i",'Motif Pattern Length', $header_format);
+        $worksheet->write("B$i",'Number of SSRs Found', $header_format);
+    foreach $group (sort keys %MOTIFLEN_w_PRIMERS){
+        $i++;
+        $worksheet->write("A$i", "$group bp");
+        $worksheet->write("B$i", $MOTIFLEN_w_PRIMERS{$group});
+    }
+
+}
+
+
 #sub _initiate_worksheet{
 #    my $workbook = $_[0];
 #    my $formats  = $_[1];
@@ -896,7 +1016,23 @@ sub print_stats{
 #
 #	return $worksheet;
 #}
+
+
+	#my $worksheet_stats = printStats($stats_out, $workbook, $formats, $project);
+	#$worksheet_stats->activate();
+	#$worksheet_stats->select();
+	#$workbook->close();
+#sub initiate_workbooks{
+#    my $workbook = $_[0]; # file name
+#    my $formats  = $_[1]; # file name
+#    my $project  = $_[2]; # file name
 #
+#	_print_worksheet($di_worksheet, $formats, $project);
+#	_print_worksheet($tri_worksheet, $formats, $project);
+#	_print_worksheet($tetra_worksheet, $formats, $project);
+#}
+################################################################
+
 #sub _print_worksheet{
 #    my $worksheet = $_[0];
 #    my $formats   = $_[1];
@@ -1016,207 +1152,6 @@ sub print_stats{
 ##
 #
 #################################################################
-#sub printStats{
-#    my $stats_out = $_[0]; # file name
-#    my $workbook  = $_[1]; # file name
-#    my $formats   = $_[2]; # file name
-#    my $project   = $_[3]; # file name
-#
-#
-#    ##--------------------------------------------------------------------
-#    ## calculate some info
-#
-#    my $time = scalar localtime;                   # Get the current time
-#
-#    ## count number of seqs with single or multiple SSRs
-#    my $SINGLE_SSR_COUNT_w_primers = 0;
-#    my $SINGLE_SSR_COUNT = 0;
-#    my $MULTI_SSR_COUNT = 0;
-#
-#    foreach my $contig_name (keys %CONTIG_SSR_STARTS){
-#        my $starts = scalar @{ $CONTIG_SSR_STARTS{$contig_name} };
-#        if($starts == 1){
-#            $SINGLE_SSR_COUNT++;
-#            my @starts = @{ $CONTIG_SSR_STARTS{$contig_name} };
-#            my $start = $starts[0];
-#            my $ssr_id = $contig_name."_ssr".$start;
-#            if(exists $SSR_STATS{$ssr_id} && $SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){
-#                $SINGLE_SSR_COUNT_w_primers++;
-#            }
-#        }
-#        elsif($starts > 1){ $MULTI_SSR_COUNT++; }
-#    }
-#
-#    my $SSR_COUNT_w_primers = 0;
-#    foreach my $ssr_id (keys %SSR_STATS){
-#        if($SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){
-#            $SSR_COUNT_w_primers++;
-#        }
-#    }
-#
-#    ##--------------------------------------------------------------------
-#    ## print text file
-#    open (OUTS, ">".$stats_out) || die "ERROR cannot open $stats_out\n";
-#
-#    print OUTS 'SSR Summary Report\n';
-#    print OUTS "Analsis of $SEQ_COUNT sequences\n";
-#    print OUTS "$time\n";
-#    print OUTS "Number of SSRs identified\t$SSR_COUNT\n";
-#    print OUTS "Number of sequences with 1 SSR: $SINGLE_SSR_COUNT\n";
-#    print OUTS "Number of sequences with more than one SSR: $MULTI_SSR_COUNT\n";
-#    print OUTS "\n";
-#    print OUTS "Base Pairs in Motif\tMin # Reps\tMax # Reps\n";
-#    print OUTS "--------------------------------------\n";
-#    print OUTS "2 (Dinucleotides)\t$MIN_REPS_2bp\t$MAX_REPS_2bp\n";
-#    print OUTS "3 (Trinucleotides)\t$MIN_REPS_3bp\t$MAX_REPS_3bp\n";
-#    print OUTS "4 (Tetranucleotides)\t$MIN_REPS_4bp\t$MAX_REPS_4bp\n";
-#    print OUTS "\n";
-#    print OUTS "Motif Patterns\tNumber of SSRs Found\n";
-#    print OUTS "--------------------------------------\n";
-#    my $group;
-#    foreach $group (sort {length $a <=> length $b} keys %MOTIFS){
-#        $group =~ s/^|//;
-#        $group =~ s/|$//;
-#        print OUTS "$group\t$MOTIFS{$group}\n";
-#    }
-#    print OUTS "\n";
-#    print OUTS "Motif Pattern Length\tNumber of SSRs Found\n";
-#    print OUTS "--------------------------------------\n";
-#
-#    foreach $group (sort keys %MOTIFLEN){
-#        print OUTS "$group\t$MOTIFLEN{$group}\n";
-#    }
-#
-#    print OUTS "SSRS with PRIMERS\n";
-#    print OUTS "Number of SSRs identified with successful primer design: $SSR_COUNT_w_primers\n";
-#    print OUTS "Number of sequences with 1 SSR and successful primer design: $SINGLE_SSR_COUNT_w_primers\n";
-#    print OUTS "Motif Pattern Length\tNumber of SSRs Found\n";
-#    print OUTS "--------------------------------------\n";
-#
-#    foreach $group (sort keys %MOTIFLEN_w_PRIMERS){
-#        print OUTS "$group\t$MOTIFLEN_w_PRIMERS{$group}\n";
-#    }
-#
-#
-#    close OUTS;
-#
-#    ##--------------------------------------------------------------------
-#    ## print excel file
-#    my $worksheet = $workbook->add_worksheet("Summary");
-#
-#    $worksheet->set_column('A:A', 75, $formats->{text});
-#    $worksheet->set_column('B:B', 30, $formats->{text});
-#
-#    $worksheet->write('A1',"SSR Summary Report for $project", $formats->{header});
-#    $worksheet->write('A2',"Analsis of $SEQ_COUNT sequences", $formats->{text});
-#    $worksheet->write('A3',"$time", $formats->{text});
-#
-#    $worksheet->write('A4',"Number of SSRs identified", $formats->{text});
-#        $worksheet->write('B4',"$SSR_COUNT", $formats->{text});
-#    $worksheet->write('A5',"Number of sequences with 1 SSR", $formats->{text});
-#        $worksheet->write('B5',"$SINGLE_SSR_COUNT", $formats->{text});
-#    $worksheet->write('A6',"Number of sequences with more than one SSR", $formats->{text});
-#        $worksheet->write('B6',"$MULTI_SSR_COUNT", $formats->{text});
-#
-#    $worksheet->write('A8','Base Pairs in Motif', $formats->{header});
-#        $worksheet->write('B8','Min # Reps', $formats->{header});
-#        $worksheet->write('C8','Max # Reps', $formats->{header});
-#    $worksheet->write('A9','2 (Dinucleotides)', $formats->{text});
-#        $worksheet->write('B9',"$MIN_REPS_2bp", $formats->{text});
-#        $worksheet->write('C9',"$MAX_REPS_2bp", $formats->{text});
-#    $worksheet->write('A10','3 (Trinucleotides)', $formats->{text});
-#        $worksheet->write('B10',"$MIN_REPS_3bp", $formats->{text});
-#        $worksheet->write('C10',"$MAX_REPS_3bp", $formats->{text});
-#    $worksheet->write('A11','4 (Tetranucleotides)', $formats->{text});
-#        $worksheet->write('B11',"$MIN_REPS_4bp", $formats->{text});
-#        $worksheet->write('C11',"$MAX_REPS_4bp", $formats->{text});
-#
-#    $worksheet->write('A13','Motif Patterns', $formats->{header});
-#        $worksheet->write('B13','Number of SSRs Found', $formats->{header});
-#    my $group;
-#    my $i = 13;
-#    foreach $group (sort {length $a <=> length $b} keys %MOTIFS){
-#        $group =~ s/^|//;
-#        $group =~ s/|$//;
-#        $i++;
-#        $worksheet->write("A$i", $group, $formats->{text});
-#        $worksheet->write("B$i", $MOTIFS{$group}, $formats->{text});
-#    }
-#
-#    $i++;
-#    $i++;
-#    $worksheet->write("A$i",'Motif Pattern Length', $formats->{header});
-#        $worksheet->write("B$i",'Number of SSRs Found', $formats->{header});
-#    foreach $group (sort keys %MOTIFLEN){
-#        $i++;
-#        $worksheet->write("A$i", "$group bp", $formats->{text});
-#        $worksheet->write("B$i", $MOTIFLEN{$group}, $formats->{text});
-#    }
-#
-#    $i++;
-#    $i++;
-#    $worksheet->write("A$i",'SSRs with Primers', $formats->{header});
-#    $i++;
-#    $worksheet->write("A$i", "Number of SSRs identified with successful primer design", $formats->{text});
-#        $worksheet->write("B$i", $SSR_COUNT_w_primers, $formats->{text});
-#    $i++;
-#    $worksheet->write("A$i", "Number of sequences with 1 SSR and successful primer design", $formats->{text});
-#        $worksheet->write("B$i", $SINGLE_SSR_COUNT_w_primers, $formats->{text});
-#
-#    $i++;
-#    $i++;
-#    $worksheet->write("A$i",'Motif Pattern Length (Only SSRs with Primers)', $formats->{header});
-#        $worksheet->write("B$i",'Number of SSRs Found', $formats->{header});
-#    foreach $group (sort keys %MOTIFLEN_w_PRIMERS){
-#        $i++;
-#        $worksheet->write("A$i", "$group bp", $formats->{text});
-#        $worksheet->write("B$i", $MOTIFLEN_w_PRIMERS{$group}, $formats->{text});
-#    }
-#
-#    close OUTS;
-#    return $worksheet;
-#
-#}
-#
-################################################################
-
-sub createExcelWorkbook{
-
-    my $ssr_xlsx = $_[0];
-
-    my $workbook;        # the excel workbook
-    my %formats;
-    my %header;
-    my %text;
-    my %bigheader;
-    my %highlight;
-
-
-    # Create an excel workbook
-    $workbook = Excel::Writer::XLSX->new("$ssr_xlsx");
-
-    # Setup the formats that will be necessary for the excel spreadsheet
-    %header = (font         => 'Calibri',
-                size         => 12,
-                bold         => 1,
-                color        => 'black',
-                align        => 'left',
-                text_wrap    => 1);
-
-    %text = (font         => 'Calibri',
-                size         => 12,
-                color        => 'black',
-                align        => 'left',
-                text_wrap    => 1);
-
-    #add the formats to the workbook
-    $formats{header} = $workbook->add_format(%header);
-    $formats{text} = $workbook->add_format(%text);
-
-    return ($workbook,\%formats);
-
-}
-
 
 ################################################################
 #sub _printUsage {
