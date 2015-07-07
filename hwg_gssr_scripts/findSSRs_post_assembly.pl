@@ -34,7 +34,7 @@
 # Output:
 # ------
 # <input-file-name>.ssr.fasta
-# A fasta file with sequences with a SSR. (Compound SSRs are not considered)
+# A fasta file with sequences with a SSR. (Sequences with compound SSRs are included)
 #
 # <input-file-name>.ssr_stats.txt
 # A text file of statistics about the SSRs discovered.
@@ -221,12 +221,13 @@ sub main{
     $p3_output = "$fasta_file.p3out.txt";
 
     $ssr_out          = "$fasta_file.ssr_report.txt";
-    $ssr_xlsx         = "$fasta_file.ssr_report.xlsx";
     $fasta_out        = "$fasta_file.ssr.fasta";
     $stats_out        = "$fasta_file.ssr_stats.txt";
     $di_primer_out    = "$fasta_file.di_primer_report.txt";
     $tri_primer_out   = "$fasta_file.tri_primer_report.txt";
     $tetra_primer_out = "$fasta_file.tetra_primer_report.txt";
+
+    $ssr_xlsx         = "$fasta_file.ssr_report.xlsx";
 
 	##---------------------------------------------------------------
     print "finding SSRs...\n";
@@ -245,11 +246,9 @@ sub main{
 
 	##---------------------------------------------------------------
 	## Producing output - Fasta files and flat files
-    #($fasta_out);
-
-	#print "printing output files...";
-	#create_primer_flat_files ($di_primer_out, $tri_primer_out, $tetra_primer_out);
-
+	print "printing output files...";
+	create_flat_files($ssr_out, $di_primer_out, $tri_primer_out, $tetra_primer_out);
+	create_fasta_file($fasta_out);
 
 	##---------------------------------------------------------------
 	## Producing output - statistics
@@ -523,13 +522,13 @@ sub flag_multiSSRs{
 			## this contig has only one ssr
 			my $start_index = $starts[0];
 			my $ssr_id = $contig."_ssr".$start_index;
-			$SSR_STATS{$ssr_id}{MULTI} = "False";
+			$SSR_STATS{$ssr_id}{MULTI} = "FALSE";
 		}
 		else{
 			## this contig has multiple ssrs
 			foreach my $start_index (@starts){
 				my $ssr_id = $contig."_ssr".$start_index;
-				$SSR_STATS{$ssr_id}{MULTI} = "True";
+				$SSR_STATS{$ssr_id}{MULTI} = "TRUE";
 			}
 		}
 	}
@@ -652,49 +651,38 @@ sub parseP3_output{
     print "total identical primers: $identical_primer_cnt\n";
 }
 
-################################################################
-#sub printFasta{
-#	my $fasta_out = shift;
-#
-#	# this subroutine accomplishes two things
-#	# 1. adds a MULTI flag to the data hash indicating if the
-#	# ssr is the only one in the sequence or one of many
-#	# 2. prints a fasta file with sequences with a single ssr
-#	# and another with sequences with multiple ssrs
-#
-#	open FASTA, ">$fasta_out";
-#
-#	foreach my $contig (keys %CONTIG_SSR_STARTS){
-#		my @starts = @{ $CONTIG_SSR_STARTS{$contig}};
-#		if(@starts == 1){
-#			## this contig has only one ssr
-#			my $start_index = $starts[0];
-#			my $ssr_id = $contig."_ssr".$start_index;
-#			$SSR_STATS{$ssr_id}{MULTI} = "False";
-#			#print "\t$ssr_id:FALSE\n";
-#			print FASTA ">$contig ".
-#									"($SSR_STATS{$ssr_id}{START}-$SSR_STATS{$ssr_id}{END})\n".
-#									"$SSR_STATS{$ssr_id}{SEQ}\n";
-#		}
-#		else{
-#			## this contig has multiple ssrs
-#			print FASTA ">$contig (";
-#			foreach my $start_index (@starts){
-#				my $ssr_id = $contig."_ssr".$start_index;
-#				$SSR_STATS{$ssr_id}{MULTI} = "True";
-#				#print "\t$ssr_id:TRUE\n";
-#				print FASTA "$SSR_STATS{$ssr_id}{START}-$SSR_STATS{$ssr_id}{END} ";
-#			}
-#			#get the first ssr index just so we can get the sequence
-#			my $start_index = $starts[0];
-#			my $ssr_id = $contig."_ssr".$start_index;
-#			print FASTA ")\n ";
-#			print FASTA "$SSR_STATS{$ssr_id}{SEQ}\n";
-#		}
-#	}
-#	close FASTA;
-#
-#}
+sub create_flat_files{
+	my $ssr_out = shift;
+	my $di_primer_out = shift;
+	my $tri_primer_out = shift;
+	my $tetra_primer_out = shift;
+
+}
+
+sub create_fasta_file{
+	my $fasta_out = shift;
+	open FASTA, ">$fasta_out";
+
+	foreach my $contig (keys %CONTIG_SSR_STARTS){
+		my @starts = @{ $CONTIG_SSR_STARTS{$contig}};
+		print FASTA ">$contig (";
+		foreach my $start_index (@starts){
+			my $ssr_id = $contig."_ssr".$start_index;
+			print FASTA "$SSR_STATS{$ssr_id}{START}-$SSR_STATS{$ssr_id}{END} ";
+			if($SSR_STATS{$ssr_id}{COMPOUND} == 'TRUE'){ 
+				print FASTA "*Compound ";
+			}
+		}
+		#get the first ssr index just so we can get the sequence
+		my $start_index = $starts[0];
+		my $ssr_id = $contig."_ssr".$start_index;
+		print FASTA ")\n ";
+		print FASTA "$SSR_STATS{$ssr_id}{SEQ}\n";
+
+	}
+	close FASTA;
+
+}
 ################################################################
 
 
