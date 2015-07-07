@@ -216,7 +216,7 @@ sub main{
 
     my $ssr_out;  # the tab-delimited output file
     my $ssr_xlsx;
-    my $fasta_out;
+    my $fasta_out_single;
     my $fasta_out_multi;
     my $stats_out;
 
@@ -242,8 +242,10 @@ sub main{
 
     $ssr_out        = "$fasta_file.ssr_report.txt";
     $ssr_xlsx       = "$fasta_file.ssr_report.xlsx";
-    $fasta_out      = "$fasta_file.ssr_filtered.fasta";
-    $fasta_out_multi = "$fasta_file.ssr_multi_seqs.fasta";
+
+    $fasta_out_single = "$fasta_file.seqs_one_ssr.fasta";
+    $fasta_out_multi  = "$fasta_file.seqs_multi_ssrs.fasta";
+
     $stats_out      = "$fasta_file.ssr_stats.txt";
 
     $di_primer_out = "$fasta_file.di_primer_report.txt";
@@ -265,18 +267,24 @@ sub main{
     parseP3_output($p3_output);
     print "done.\n";
 
+	##---------------------------------------------------------------
+	## Producing output - Fasta files and flat files
+
+    print "printing output files...";
+	create_primer_flat_files ($di_primer_out, $tri_primer_out, $tetra_primer_out);
+
+	# this subroutine accomplishes two things
+	# 1. adds a MULTI flag to the data hash indicating if the
+	# ssr is the only one in the sequence or one of many
+	# 2. prints a fasta file with sequences with a single ssr
+	# and another with sequences with multiple ssrs
     print "identifying sequences with >1 SSR...";
-    flag_multiSSRs();
+    flag_multiSSRs($fasta_out_single, $fasta_out_multi);
     print "done.\n";
 
 	##---------------------------------------------------------------
 	## Producing output - statistics
 
-	##---------------------------------------------------------------
-	## Producing output - Fasta files and flat files
-
-    print "printing output files...";
-	create_output_files($di_primer_out, $tri_primer_out, $tetra_primer_out, $fasta_out, $fasta_out_multi);
 
 
 	##---------------------------------------------------------------
@@ -616,42 +624,62 @@ sub parseP3_output{
 
 ###############################################################
 sub flag_multiSSRs{
+	my $fasta_out_single = shift;
+	my $fasta_out_multi = shift;
+
+	# this subroutine accomplishes two things
+	# 1. adds a MULTI flag to the data hash indicating if the
+	# ssr is the only one in the sequence or one of many
+	# 2. prints a fasta file with sequences with a single ssr
+	# and another with sequences with multiple ssrs
+
+	open FASTASINGLE, ">$fasta_out_single";
+	open FASTAMULTI, ">$fasta_out_multi";
 
 	foreach my $contig (keys %CONTIG_SSR_STARTS){
-		print "contig: $contig\n";
 		my @starts = @{ $CONTIG_SSR_STARTS{$contig}};
-		print "starts: @starts\n";
 		if(@starts == 1){
+			## this contig has only one ssr
 			my $start_index = $starts[0];
 			my $ssr_id = $contig."_ssr".$start_index;
 			$SSR_STATS{$ssr_id}{MULTI} = "False";
-			print "\t$ssr_id:FALSE\n";
+			#print "\t$ssr_id:FALSE\n";
+			print FASTASINGLE ">$contig ".
+									"($SSR_STATS{$ssr_id}{START}-$SSR_STATS{$ssr_id}{END})\n".
+									"$SSR_STATS{$ssr_id}{SEQ}\n";
 		}
 		else{
+			## this contig has multiple ssrs
+			print FASTAMULTI ">$contig (";
 			foreach my $start_index (@starts){
 				my $ssr_id = $contig."_ssr".$start_index;
 				$SSR_STATS{$ssr_id}{MULTI} = "True";
-				print "\t$ssr_id:TRUE\n";
+				#print "\t$ssr_id:TRUE\n";
+				print FASTAMULTI "$SSR_STATS{$ssr_id}{START}-$SSR_STATS{$ssr_id}{END} ";
 			}
+			#get the first ssr index just so we can get the sequence
+			my $start_index = $starts[0];
+			my $ssr_id = $contig."_ssr".$start_index;
+			print FASTAMULTI ")\n ";
+			print FASTAMULTI "$SSR_STATS{$ssr_id}{SEQ}\n";
 		}
 	}
+	close FASTAOUT;
+	close FASTAMULTI;
 
 }
 
 ###############################################################
-sub create_output_files{
+sub create_primer_flat_files{
 	my $di_primer_out = shift;
 	my $tri_primer_out = shift;
 	my $tetra_primer_out = shift;
-	my $fasta_out = shift;
-	my $fasta_out_multi = shift;
 
-	# primer flat files
+
 	_print_primer_flat_files("2", $di_primer_out);
 	_print_primer_flat_files("3", $tri_primer_out);
 	_print_primer_flat_files("4", $tetra_primer_out);
-	#open (FASTAOUT, ">$fasta_out");
-	#open (FASTAMULTI, ">$fasta_out_multi");
+
 
 #                        print $fastaout_fh ">$contig $motif.$ssrStart-$ssrEnd\n$seq\n";
 #                        #print "\t$forward\n";
@@ -664,8 +692,6 @@ sub create_output_files{
 #                            $MOTIFLEN_w_PRIMERS{2} = $tmp;
 #                            my $cnt = ($ssrEnd-$ssrStart+1)/2;
 
-	#close FASTAOUT;
-	#close FASTAMULTI;
 }
 ###############################################################
 sub _print_primer_flat_files{
@@ -674,7 +700,9 @@ sub _print_primer_flat_files{
 
     open (OUT, ">$file_name");
 	foreach my $ssr_id (keys %SSR_STATS){
-		# only print SSRs with the right motif length and 
+
+		# for flat files, only print SSRs with the right 
+		# motif length and 
 		# that are not multis and
 		# that have primers
 		if(length $SSR_STATS{$ssr_id}{MOTIF} == $motif_len &&
