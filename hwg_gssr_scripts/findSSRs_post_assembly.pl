@@ -275,22 +275,9 @@ sub main{
 	##---------------------------------------------------------------
 	## Producing output - Fasta files and flat files
 
-	# open filehandles
-    open (DI, ">$di_primer_out");
-    open (TRI, ">$tri_primer_out");
-    open (TETRA, ">$tetra_primer_out");
-    open (FASTAOUT, ">$fasta_out");
-    open (FASTAMULTI, ">$fasta_out_multi");
-    my $di_fh = *DI;
-    my $tri_fh = *TRI;
-    my $tetra_fh = *TETRA;
-    my $fastaout_fh = *FASTAOUT;
-    my $fastamulti_fh = *FASTAMULTI;
-    close DI;
-    close TRI;
-    close TETRA;
-    close FASTAOUT;
-    close FASTAMULTI;
+    print "printing output files...";
+	create_output_files($di_primer_out, $tri_primer_out, $tetra_primer_out, $fasta_out, $fasta_out_multi);
+
 
 	##---------------------------------------------------------------
 	## Producing output - Excel
@@ -620,18 +607,6 @@ sub parseP3_output{
 				$SSR_STATS{$ssr_id}{LEFT_TM} = $left_tm;
 				$SSR_STATS{$ssr_id}{RIGHT_TM} = $right_tm;
 
-				my $motif      = $SSR_STATS{$ssr_id}{MOTIF};
-				my $ssrStart   = $SSR_STATS{$ssr_id}{START};
-				my $ssrEnd     = $SSR_STATS{$ssr_id}{END};
-				my $seq        = $SSR_STATS{$ssr_id}{SEQ};
-				my $seq_masked = $SSR_STATS{$ssr_id}{SEQM};
-
-				#print "ssr_id $ssr_id\n";
-				#print "forward $forward\n";
-				#print "reverse $reverse\n";
-				#print "left_tm $left_tm\n";
-				#print "right_tm $right_tm\n";
-				#print "product_size $product_size\n\n";
 			}
 		}
 	}
@@ -664,6 +639,68 @@ sub flag_multiSSRs{
 }
 
 ###############################################################
+sub create_output_files{
+	my $di_primer_out = shift;
+	my $tri_primer_out = shift;
+	my $tetra_primer_out = shift;
+	my $fasta_out = shift;
+	my $fasta_out_multi = shift;
+
+	# primer flat files
+	_print_primer_flat_files("2", $di_primer_out);
+	_print_primer_flat_files("3", $tri_primer_out);
+	_print_primer_flat_files("4", $tetra_primer_out);
+	#open (FASTAOUT, ">$fasta_out");
+	#open (FASTAMULTI, ">$fasta_out_multi");
+
+#                        print $fastaout_fh ">$contig $motif.$ssrStart-$ssrEnd\n$seq\n";
+#                        #print "\t$forward\n";
+#                        $SSR_w_PRIMER_COUNT++;
+#                        if(length $motif == 2){
+#                            print $di_fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
+#                            print $di_fh "\n";
+#                            my $tmp = $MOTIFLEN_w_PRIMERS{2};
+#                            $tmp++;
+#                            $MOTIFLEN_w_PRIMERS{2} = $tmp;
+#                            my $cnt = ($ssrEnd-$ssrStart+1)/2;
+
+	#close FASTAOUT;
+	#close FASTAMULTI;
+}
+###############################################################
+sub _print_primer_flat_files{
+	my $motif_len = shift;
+	my $file_name = shift;
+
+    open (OUT, ">$file_name");
+	foreach my $ssr_id (keys %SSR_STATS){
+		# only print SSRs with the right motif length and 
+		# that are not multis and
+		# that have primers
+		if(length $SSR_STATS{$ssr_id}{MOTIF} == $motif_len &&
+			$SSR_STATS{$ssr_id}{MULTI} == 'FALSE' &&
+			$SSR_STATS{$ssr_id}{FORWARD} =~ /\S/
+		){
+
+			print OUT join("\t",
+				$ssr_id,
+				$SSR_STATS{$ssr_id}{MOTIF},
+				$SSR_STATS{$ssr_id}{START},
+				$SSR_STATS{$ssr_id}{END},
+				$SSR_STATS{$ssr_id}{FORWARD},
+				$SSR_STATS{$ssr_id}{REVERSE},
+				$SSR_STATS{$ssr_id}{LEFT_TM},
+				$SSR_STATS{$ssr_id}{RIGHT_TM},
+				$SSR_STATS{$ssr_id}{PRODUCT_SIZE},
+				$SSR_STATS{$ssr_id}{SEQ},
+				$SSR_STATS{$ssr_id}{SEQM}
+			);
+		}
+	}
+	close OUT;
+}
+
+###############################################################
 sub initiate_workbooks{
     my $workbook = $_[0]; # file name
     my $formats  = $_[1]; # file name
@@ -675,6 +712,7 @@ sub initiate_workbooks{
 
 	return($di_worksheet, $tri_worksheet, $tetra_worksheet);
 }
+###############################################################
 sub _initiate_worksheet{
     my $workbook = $_[0];
     my $formats  = $_[1];
@@ -708,16 +746,6 @@ sub _print_worksheet{
 
 
 }
-#                        print $fastaout_fh ">$contig $motif.$ssrStart-$ssrEnd\n$seq\n";
-#                        #print "\t$forward\n";
-#                        $SSR_w_PRIMER_COUNT++;
-#                        if(length $motif == 2){
-#                            print $di_fh join("\t", $contig, $motif, $ssrStart, $ssrEnd, $forward, $reverse, $left_tm, $right_tm, $product_size, $seq, $seq_masked);
-#                            print $di_fh "\n";
-#                            my $tmp = $MOTIFLEN_w_PRIMERS{2};
-#                            $tmp++;
-#                            $MOTIFLEN_w_PRIMERS{2} = $tmp;
-#                            my $cnt = ($ssrEnd-$ssrStart+1)/2;
 #
 #                            $di_worksheet->write("A$di_index", $contig, $formats->{text});
 #                                $di_worksheet->write("B$di_index", $motif, $formats->{text});
