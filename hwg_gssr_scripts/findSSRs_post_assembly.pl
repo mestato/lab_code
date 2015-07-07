@@ -235,14 +235,13 @@ sub main{
     flag_multiSSRs();
     print "done.\n";
 
+	##---------------------------------------------------------------
     print "running primer3...\n";
 	addToPrimer3InputFile ($p3_input);
-#    print "$PRIMER3 < $p3_input > $p3_output\n";
-#    my $status = system("$PRIMER3 < $p3_input > $p3_output");
-#
-#    print "parsing primer3...";
-#    parseP3_output($p3_output);
-#    print "done.\n";
+    print "$PRIMER3 < $p3_input > $p3_output\n";
+    my $status = system("$PRIMER3 < $p3_input > $p3_output");
+    parseP3_output($p3_output);
+    print "done.\n";
 
 	##---------------------------------------------------------------
 	## Producing output - Fasta files and flat files
@@ -582,6 +581,78 @@ sub addToPrimer3InputFile{
 	close OUT;
 }
 ################################################################
+sub parseP3_output{
+    my $p3_output = $_[0]; # file name
+
+	# We are going to keep track of a weird phenomenon only seen in one
+	# project - the generation of identical forward and reverse primers. The
+	# sequences from this project were overlapping paired ends that were joined.
+	# Apparently something went wrong and weird sequences were obtained, all of
+	# which yield the identical primers.
+	# This is not reported in the final stats, just as part of the standard output.
+    my $identical_primer_cnt = 0;
+
+    # The primers output file separates information about different sequences
+    # with an equal sign on a single line. So, we want to set the file line
+    # delimiter (for looping on the input file below) to a single equal sign
+    # followed by a line feed.  This way were guranteed to have all the primer
+    # information together per line
+    local $/ = "=\n";
+
+    open (P3O, $p3_output) || die "could not open $_\n";
+
+    # Read in all of the lines of the input file
+	my $primer_record;
+    while ($primer_record = <P3O>) {
+        my $start = "";
+        my $seq_id = "";
+        my $ssr_id = "";
+        my $forward = "";
+        my $reverse = "";
+        my $product_size = "";
+        my $left_tm = "";
+        my $right_tm = "";
+
+		if ($primer_record =~ /SEQUENCE_ID=(\S+)/) {
+		    $ssr_id = $1;
+		}
+		# get the primary primers only
+		if ($primer_record =~ /PRIMER_LEFT_0_SEQUENCE=(\S+)/) {
+		    $forward = $1;
+		}
+		if ($primer_record =~ /PRIMER_RIGHT_0_SEQUENCE=(\S+)/) {
+		    $reverse = $1;
+		}
+		if ($primer_record =~ /PRIMER_LEFT_0_TM=(\S+)/) {
+		    $left_tm = $1;
+		}
+		if ($primer_record =~ /PRIMER_RIGHT_0_TM=(\S+)/) {
+		    $right_tm = $1;
+		}
+		if ($primer_record =~ /PRIMER_PAIR_0_PRODUCT_SIZE=(\S+)/) {
+		    $product_size = $1;
+		}
+
+		if(length $forward > 1){
+			if($forward eq $reverse){
+				print "FLAG: problem with $ssr_id\n";
+				$identical_primer_cnt++;
+			}
+			else{
+				$SSR_STATS{$ssr_id}{FORWARD} = $forward;
+				$SSR_STATS{$ssr_id}{REVERSE} = $reverse;
+				$SSR_STATS{$ssr_id}{PRODUCT_SIZE} = $product_size;
+				$SSR_STATS{$ssr_id}{LEFT_TM} = $left_tm;
+				$SSR_STATS{$ssr_id}{RIGHT_TM} = $right_tm;
+
+			}
+		}
+	}
+
+    print "total identical primers: $identical_primer_cnt\n";
+}
+
+################################################################
 #sub printFasta{
 #	my $fasta_out = shift;
 #
@@ -626,79 +697,7 @@ sub addToPrimer3InputFile{
 #}
 ################################################################
 
-################################################################
-#sub parseP3_output{
-#    my $p3_output = $_[0]; # file name
-#
-#	# We are going to keep track of a weird phenomenon only seen in one
-#	# project - the generation of identical forward and reverse primers. The
-#	# sequences from this project were overlapping paired ends that were joined.
-#	# Apparently something went wrong and weird sequences were obtained, all of
-#	# which yield the identical primers.
-#	# This is not reported in the final stats, just as part of the standard output.
-#    my $identical_primer_cnt = 0;
-#
-#    # The primers output file separates information about different sequences
-#    # with an equal sign on a single line. So, we want to set the file line
-#    # delimiter (for looping on the input file below) to a single equal sign
-#    # followed by a line feed.  This way were guranteed to have all the primer
-#    # information together per line
-#    local $/ = "=\n";
-#
-#    open (P3O, $p3_output) || die "could not open $_\n";
-#
-#    # Read in all of the lines of the input file
-#	my $primer_record;
-#    while ($primer_record = <P3O>) {
-#        my $start = "";
-#        my $seq_id = "";
-#        my $ssr_id = "";
-#        my $forward = "";
-#        my $reverse = "";
-#        my $product_size = "";
-#        my $left_tm = "";
-#        my $right_tm = "";
-#
-#		if ($primer_record =~ /SEQUENCE_ID=(\S+)/) {
-#		    $ssr_id = $1;
-#		}
-#		# get the primary primers only
-#		if ($primer_record =~ /PRIMER_LEFT_0_SEQUENCE=(\S+)/) {
-#		    $forward = $1;
-#		}
-#		if ($primer_record =~ /PRIMER_RIGHT_0_SEQUENCE=(\S+)/) {
-#		    $reverse = $1;
-#		}
-#		if ($primer_record =~ /PRIMER_LEFT_0_TM=(\S+)/) {
-#		    $left_tm = $1;
-#		}
-#		if ($primer_record =~ /PRIMER_RIGHT_0_TM=(\S+)/) {
-#		    $right_tm = $1;
-#		}
-#		if ($primer_record =~ /PRIMER_PAIR_0_PRODUCT_SIZE=(\S+)/) {
-#		    $product_size = $1;
-#		}
-#
-#		if(length $forward > 1){
-#			if($forward eq $reverse){
-#				print "FLAG: problem with $ssr_id\n";
-#				$identical_primer_cnt++;
-#			}
-#			else{
-#				$SSR_STATS{$ssr_id}{FORWARD} = $forward;
-#				$SSR_STATS{$ssr_id}{REVERSE} = $reverse;
-#				$SSR_STATS{$ssr_id}{PRODUCT_SIZE} = $product_size;
-#				$SSR_STATS{$ssr_id}{LEFT_TM} = $left_tm;
-#				$SSR_STATS{$ssr_id}{RIGHT_TM} = $right_tm;
-#
-#			}
-#		}
-#	}
-#
-#    print "total identical primers: $identical_primer_cnt\n";
-#}
-#
-#
+
 ################################################################
 #sub create_primer_flat_files{
 #	my $di_primer_out = shift;
