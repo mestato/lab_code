@@ -149,6 +149,19 @@ push(@MOTIF_SPECS,[4, $MIN_REPS_4bp, $MAX_REPS_4bp, 'tetranucleotides']);
 
 #-------------------------------------------------------------------------------
 # Generating statistics
+my $TIME = scalar localtime;                   # Get the current time
+my $SEQ_w_SSRS = 0;
+my $SSR_COUNT = 0;
+my $SSR_COUNT_COMPOUND = 0;
+my $SSR_COUNT_PRIMER = 0;
+
+my %MOTIFLEN = ('2'  => 0,
+                '3'  => 0,
+                '4'  => 0);
+
+my %MOTIFLEN_w_PRIMERS = ('2'  => 0,
+                          '3'  => 0,
+                          '4'  => 0);
 my %MOTIFS = ('|AT|TA|'                   => 0,
               '|AG|GA|CT|TC|'             => 0,
               '|AC|CA|TG|GT|'             => 0,
@@ -167,16 +180,7 @@ my %MOTIFS = ('|AT|TA|'                   => 0,
               '|AGC|GCA|CAG|GCT|CTG|TGC|' => 0,
               '|ACG|CGA|GAC|CGT|GTC|TCG|' => 0);
 
-my %MOTIFLEN = ('2'  => 0,
-                '3'  => 0,
-                '4'  => 0);
 
-my %MOTIFLEN_w_PRIMERS = ('2'  => 0,
-                          '3'  => 0,
-                          '4'  => 0);
-
-my $SSR_COUNT = 0;
-my $SSR_w_PRIMER_COUNT = 0;
 
 #-------------------------------------------------------------------------------
 #  EXECUTE
@@ -244,6 +248,7 @@ sub main{
 	##---------------------------------------------------------------
 	## Producing output - statistics
 
+	calculate_stats($stats_out);
 
 
 	##---------------------------------------------------------------
@@ -771,9 +776,84 @@ sub create_fasta_file{
 
 }
 ################################################################
+sub calculate_stats{
+
+	$SEQ_w_SSRS = keys %CONTIG_SSR_STARTS;
+
+	foreach my $ssr_id (keys %SSR_STATS){
+		$SSR_COUNT++;
+
+		if($SSR_STATS{$ssr_id}{COMPOUND} == 1){
+			$SSR_COUNT_COMPOUND++;
+		}
+		else{
+			$MOTIFLEN{ $SSR_STATS{$ssr_id}{MOTIFLEN} }++;
+
+			my $motifUC = uc($SSR_STATS{$ssr_id}{MOTIF});
+			foreach my $group (keys %MOTIFS) {
+				if($group =~ /\|$motifUC\|/){
+					print "Incrementing $group for $motifUC\n";
+					$MOTIFS{$group}++;
+				}
+			}
+
+			if($SSR_STATS{$ssr_id}{FORWARD} =~ /\S/){
+				$SSR_COUNT_PRIMER++;
+				$MOTIFLEN_w_PRIMERS{ $SSR_STATS{$ssr_id}{MOTIFLEN} }++;
+			}
+		}
+	}
+
+}
+sub printStats{
+    my $stats_out = $_[0]; # file name
+
+    open (OUTS, ">".$stats_out) || die "ERROR cannot open $stats_out\n";
+
+    print OUTS 'SSR Summary Report\n';
+    print OUTS "Analsis of $SEQ_COUNT sequences\n";
+    print OUTS "$TIME\n";
+    print OUTS "Number of sequences with at least one SSR\t$SEQ_w_SSRS\n";
+    print OUTS "Number of SSRs identified\t$SSR_COUNT\n\n";
+    print OUTS "Number of compound SSRs: $SSR_COUNT_COMPOUND\n";
+    print OUTS "Number of SSRs with primers*: $SSR_COUNT_COMPOUND\n";
+    print OUTS "*No primers are designed for compound SSRs\n";
+    print OUTS "\n";
+    print OUTS "Base Pairs in Motif\tMin # Reps\tMax # Reps\n";
+    print OUTS "--------------------------------------\n";
+    print OUTS "2 (Dinucleotides)\t$MIN_REPS_2bp\t$MAX_REPS_2bp\n";
+    print OUTS "3 (Trinucleotides)\t$MIN_REPS_3bp\t$MAX_REPS_3bp\n";
+    print OUTS "4 (Tetranucleotides)\t$MIN_REPS_4bp\t$MAX_REPS_4bp\n";
+    print OUTS "\n";
+    print OUTS "Motif Patterns\tNumber of SSRs Found\n";
+    print OUTS "--------------------------------------\n";
+    my $group;
+    foreach $group (sort {length $a <=> length $b} keys %MOTIFS){
+        $group =~ s/^|//;
+        $group =~ s/|$//;
+        print OUTS "$group\t$MOTIFS{$group}\n";
+    }
+    print OUTS "\n";
+    print OUTS "Motif Pattern Length\tNumber of SSRs Found\n";
+    print OUTS "--------------------------------------\n";
+
+    foreach $group (sort keys %MOTIFLEN){
+        print OUTS "$group\t$MOTIFLEN{$group}\n";
+    }
+
+    print OUTS "SSRS with PRIMERS\n";
+    print OUTS "Motif Pattern Length\tNumber of SSRs Found\n";
+    print OUTS "--------------------------------------\n";
+
+    foreach $group (sort keys %MOTIFLEN_w_PRIMERS){
+        print OUTS "$group\t$MOTIFLEN_w_PRIMERS{$group}\n";
+    }
 
 
-#
+    close OUTS;
+
+}
+
 ################################################################
 #sub initiate_workbooks{
 #    my $workbook = $_[0]; # file name
