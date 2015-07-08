@@ -391,7 +391,7 @@ sub process_ssr{
 	##-------------------------------------
 	## generate a few more stats and variables
 	my $motif_len = length $motif;
-	my $num_of_repeats = ($end_index-$start_index+1)/$motif_len;
+	my $num_of_repeats = ($end_index-$start_index)/$motif_len;
     my $ssr_id = $contig_name."_ssr".$start_index;
 
 	##-------------------------------------
