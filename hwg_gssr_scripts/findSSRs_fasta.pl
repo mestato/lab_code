@@ -122,6 +122,8 @@ my $PRIMER_MAX_GC = "60";
 my $PRIMER_MAX_POLY_X = "3";
 my $PRIMER_GC_CLAMP = "2";
 
+my $PRIMER_LOWERCASE_MASKING = 1;
+
 #-------------------------------------------------------------------------------
 # GLOBAL HASHES
 #-------------------------------------------------------------------------------
@@ -566,6 +568,7 @@ sub addToPrimer3InputFile{
     		printf OUT ("PRIMER_MAX_POLY_X=$PRIMER_MAX_POLY_X\n");
     		printf OUT ("PRIMER_GC_CLAMP=$PRIMER_GC_CLAMP\n");
     		printf OUT ("PRIMER_THERMODYNAMIC_PARAMETERS_PATH=$PRIMER3_CONFIG\n");
+    		printf OUT ("PRIMER_LOWERCASE_MASKING=$PRIMER_LOWERCASE_MASKING\n");
     		printf OUT ("=\n");
 		}
 	}
