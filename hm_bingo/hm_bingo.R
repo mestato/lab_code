@@ -13,7 +13,8 @@
 ## and parsing out all lines that begin with "GO-ID". For example using grep:
 ## $ grep "^GO-ID" ColdOUTPUT.bgo > headless_ColdOUTPUT.bgo
 ##
-## hm_bingo.R will create a single output Tiff "GreenAsh_All.tiff"
+## hm_bingo.R will create a three output Tiff files "Figure5_all.tiff,"
+## "Figure5A_up.tiff," and "Figure5B_down.tiff"
 ##
 
 ##--------------------------
@@ -63,23 +64,39 @@ heat <- function(matrix, name) {
 # load data
 setwd("~/hm_bingo/bgo/")
 sampleFilesAll <- list.files()
+sampleFilesUp <- grep("Up|Response",list.files(),value=TRUE)
+sampleFilesDw <- grep("Down|Response",list.files(),value=TRUE)
 
 # read data into a dataframe
 datasetAll <- ldply(sampleFilesAll, read_tsv_filename)
+datasetUp <- ldply(sampleFilesUp, read_tsv_filename)
+datasetDw <- ldply(sampleFilesDw, read_tsv_filename)
 
 # transform into a matrix all
 matAll <- daply(datasetAll, .(V8, Source), function(x) x$V2)
+matUp <- daply(datasetUp, .(V8, Source), function(x) x$V2)
+matDw <- daply(datasetDw, .(V8, Source), function(x) x$V2)
 matAll[is.na(matAll)] <- 0.05
+matUp[is.na(matUp)] <- 0.05
+matDw[is.na(matDw)] <- 0.05
 
 # reorder columns
 matReOrder <- matAll[,c(9,10,7,8,5,6,15,16,13,14,11,12,3,4,1,2,17)]
+matUpO <- matUp[,c(5,4,3,8,7,6,2,1,9)]
+matDwO <- matDw[,c(5,4,3,8,7,6,2,1,9)]
 
 # remove biological process
 matNoBP <- matReOrder[-2,]
+matUpO1 <- matUpO[-2,]
+matDwO1 <- matDwO[-2,]
 
 # remove molecular function
 matNoMF <- matNoBP[-18,]
+matUpO2 <- matUpO1[-16,]
+matDwO2 <- matDwO1[-14,]
 
 # generate heatmap
 setwd("~/hm_bingo/")
-heat(matNoMF, "GreenAsh_All.tiff")
+heat(matNoMF, "Figure5_all.tiff")
+heat(matUpO2, "Figure5A_up.tiff")
+heat(matDwO2, "Figure5B_down.tiff")
