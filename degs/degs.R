@@ -39,9 +39,12 @@ dir.create(file.path(mainDir, subDirTwo), showWarnings = FALSE)
 
 # setup sampleTable
 setwd("~/degs/counts-sorted/")
-sampleFiles <- c("24_GA-CL",
-                 "24_GA-CP",
-                 "24_GA-CR",
+sampleFiles <- c("GA-COL",
+                 "GA-COP",
+                 "GA-COR",
+                 #"24_GA-CL",
+                 #"24_GA-CP",
+                 #"24_GA-CR",
                  "GA-CL",
                  "GA-CP",
                  "GA-CR")
@@ -74,9 +77,9 @@ resSigDown <- subset(resSig, log2FoldChange < 0)
 # output results
 setwd("~/degs/output")
 write.csv(as.data.frame(resSigUp),
-          file="Cold.fix.Up.DE.csv")
+          file="Cold.Up.DE.csv")
 write.csv(as.data.frame(resSigDown),
-          file="Cold.fix.Dw.DE.csv")
+          file="Cold.Dw.DE.csv")
 
 ##-----------------------------------------------------------------
 ## Drought Stress
